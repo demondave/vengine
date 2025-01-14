@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use super::chunk::Direction;
 
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Quad(pub u32);
 

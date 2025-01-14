@@ -6,23 +6,35 @@ pub mod texture;
 
 use camera::Camera;
 use cgmath::Point3;
-use object::chunk::Chunk;
+use crossbeam::atomic::AtomicCell;
+use object::{chunk::Chunk, Object};
 use palette::Palette;
 use pipelines::voxels::voxel_pipeline;
 use std::sync::{Arc, Mutex};
-use wgpu::{util::DeviceExt, Buffer, Device, Instance, Queue, RenderPipeline, Surface};
+use wgpu::{
+    util::DeviceExt, BindGroup, Buffer, Device, Instance, Queue, RenderPipeline, Surface,
+    SurfaceConfiguration,
+};
 
 pub struct Engine<'a> {
-    size: (u32, u32),
+    size: AtomicCell<(u32, u32)>,
     device: Arc<Device>,
     queue: Arc<Queue>,
-    config: wgpu::SurfaceConfiguration,
+    config: Mutex<SurfaceConfiguration>,
     camera: Camera,
     voxel_pipeline: RenderPipeline,
     quad: Buffer,
-    chunks: Mutex<Vec<Chunk>>,
+    objects: Mutex<Vec<Object>>,
     depth_texture: texture::Texture,
+    // Palette
     palette: Palette,
+    // Object transform
+    object_transform_buffer: Buffer,
+    object_transform_bindgroup: BindGroup,
+    // Chunk offset
+    chunk_offset_buffer: Buffer,
+    chunk_offset_bindgroup: BindGroup,
+    // Surface
     surface: Surface<'a>,
 }
 
@@ -79,6 +91,69 @@ impl<'a> Engine<'a> {
 
         let queue = Arc::new(queue);
 
+        // Object transform
+        let object_transform_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("vengine::object_transform_buffer"),
+                contents: bytemuck::cast_slice(&[0f32; 4 * 4]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let object_transform_bindgroup_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("vengine::object_transform_bindgroup_layout"),
+            });
+
+        let object_transform_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &object_transform_bindgroup_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: object_transform_buffer.as_entire_binding(),
+            }],
+            label: Some("vengine::chunk_offset_bind_group"),
+        });
+
+        // Chunk offset
+        let chunk_offset_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vengine::chunk_offset_buffer"),
+            contents: bytemuck::cast_slice(&[0f32; 3]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let chunk_offset_bindgroup_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("vengine::chunk_offset_bind_group_layout"),
+            });
+
+        let chunk_offset_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &chunk_offset_bindgroup_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: chunk_offset_buffer.as_entire_binding(),
+            }],
+            label: Some("vengine::chunk_offset_bind_group"),
+        });
+
         // Camera related
         let camera = Camera::new(
             Point3::new(0.0, 5.0, 2.0),
@@ -106,15 +181,26 @@ impl<'a> Engine<'a> {
             texture::Texture::create_depth_texture(&device, &config, "engine::depth_texture");
 
         Self {
-            voxel_pipeline: voxel_pipeline(&device, &camera, &palette, surface_format),
+            voxel_pipeline: voxel_pipeline(
+                &device,
+                &camera,
+                &palette,
+                surface_format,
+                &chunk_offset_bindgroup_layout,
+                &object_transform_bindgroup_layout,
+            ),
             surface,
-            config,
-            size: (width, height),
+            config: Mutex::new(config),
+            size: AtomicCell::new((width, height)),
             device: Arc::new(device),
             queue,
             camera,
             quad,
-            chunks: Mutex::new(Vec::new()),
+            objects: Mutex::new(Vec::new()),
+            object_transform_buffer,
+            object_transform_bindgroup,
+            chunk_offset_buffer,
+            chunk_offset_bindgroup,
             depth_texture,
             palette,
         }
@@ -163,23 +249,45 @@ impl<'a> Engine<'a> {
         render_pass.set_pipeline(&self.voxel_pipeline);
         // Camera
         render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
+        // Object transform
+        render_pass.set_bind_group(1, &self.object_transform_bindgroup, &[]);
+        // Chunk offset
+        render_pass.set_bind_group(2, &self.chunk_offset_bindgroup, &[]);
         // Palette
-        render_pass.set_bind_group(1, self.palette.bind_group(), &[]);
+        render_pass.set_bind_group(3, self.palette.bind_group(), &[]);
 
         // Voxel rendering
-        let lock = self.chunks.lock().unwrap();
+        let lock = self.objects.lock().unwrap();
 
-        for chunk in lock.iter() {
-            if let Some(buffer) = chunk.buffer() {
-                // Quad
-                render_pass.set_vertex_buffer(0, self.quad.slice(..));
+        let mut copy_encoder =
+            self.device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("vengine::copy_encoder"),
+                });
 
-                // Instances
-                render_pass.set_vertex_buffer(1, buffer.slice(..));
+        for object in lock.iter() {
+            for (_, chunk) in object.chunks() {
+                if let Some(buffer) = chunk.buffer() {
+                    copy_encoder.copy_buffer_to_buffer(
+                        buffer,
+                        0,
+                        &self.chunk_offset_buffer,
+                        0,
+                        size_of::<[f32; 3]>() as u64,
+                    );
 
-                render_pass.draw(0..4, 0..chunk.quads().len() as u32);
+                    // Quad
+                    render_pass.set_vertex_buffer(0, self.quad.slice(..));
+
+                    // Instances
+                    render_pass.set_vertex_buffer(1, buffer.slice(size_of::<[f32; 3]>() as u64..));
+
+                    render_pass.draw(0..4, 0..chunk.quads().len() as u32);
+                }
             }
         }
+
+        self.queue.submit(Some(copy_encoder.finish()));
 
         drop(render_pass);
 
@@ -190,17 +298,17 @@ impl<'a> Engine<'a> {
         Ok(())
     }
 
-    fn resize(&mut self, width: u32, height: u32) {
+    pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
-            self.size = (width, height);
-            self.config.width = width;
-            self.config.height = height;
-            self.surface.configure(&self.device, &self.config);
-            self.camera
-                .set_aspect(self.config.width as f32 / self.config.height as f32);
-            // NEW!
+            self.size.store((width, height));
+            let mut lock = self.config.lock().unwrap();
+            lock.width = width;
+            lock.height = height;
+            self.surface.configure(&self.device, &lock);
+            self.camera.set_aspect(width as f32 / height as f32);
+
             self.depth_texture =
-                texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+                texture::Texture::create_depth_texture(&self.device, &lock, "depth_texture");
         }
     }
 
@@ -208,9 +316,9 @@ impl<'a> Engine<'a> {
         &self.device
     }
 
-    pub fn add(&self, chunk: Chunk) {
-        let mut lock = self.chunks.lock().unwrap();
-        lock.push(chunk);
+    pub fn add(&self, object: Object) {
+        let mut lock = self.objects.lock().unwrap();
+        lock.push(object);
     }
 
     pub fn camera(&self) -> &Camera {

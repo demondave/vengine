@@ -1,6 +1,11 @@
-use cgmath::Point3;
+use std::time::Instant;
+
+use cgmath::{Point3, Vector3, Zero};
 use colorgrad::{preset::turbo, Gradient};
-use engine::{object::chunk::Chunk, Engine};
+use engine::{
+    object::{chunk::Chunk, Object},
+    Engine,
+};
 use input::Input;
 use wgpu::{Backends, Instance, InstanceDescriptor};
 use winit::{
@@ -19,13 +24,8 @@ pub fn main() {
 
     let size = window.inner_size();
 
-    // The instance is a handle to our GPU
-    // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
     let instance = Instance::new(InstanceDescriptor {
-        #[cfg(not(target_arch = "wasm32"))]
         backends: Backends::PRIMARY,
-        #[cfg(target_arch = "wasm32")]
-        backends: wgpu::Backends::GL,
         ..Default::default()
     });
 
@@ -36,14 +36,14 @@ pub fn main() {
     let engine: &'static Engine = Box::leak(Box::new(engine));
 
     std::thread::spawn(move || {
-        run(engine);
+        start(engine);
     });
 
     let input = Input::new(event_loop, window, engine);
     input.run();
 }
 
-fn run(engine: &Engine) {
+fn start(engine: &Engine) {
     engine.palette().set_palette(palette(&turbo()));
 
     engine.camera().set_eye(Point3::new(-3.0, 0.5, -3f32));
@@ -51,18 +51,23 @@ fn run(engine: &Engine) {
         .camera()
         .set_look_at(Point3::new(0.5f32, 0.5f32, -0.5f32));
 
-    let mut chunk = Chunk::empty();
+    let mut object = Object::new(engine.device(), Vector3::zero());
+
+    let mut chunk = Chunk::empty(Vector3::new(1f32, 0f32, 0f32));
     chunk.set(0, 0, 0, true);
+    chunk.set(0, 1, 0, true);
     chunk.remesh();
-
-    dbg!(chunk.quads());
-
     chunk.allocate(engine.device());
 
-    engine.add(chunk);
+    object.add_chunk(Vector3::zero(), chunk);
+
+    engine.add(object);
 
     loop {
+        let start = Instant::now();
         engine.render().unwrap();
+        let end = Instant::now();
+        println!("{:.3}", (end - start).as_secs_f64() * 1000.0)
     }
 }
 

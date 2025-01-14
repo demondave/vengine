@@ -1,3 +1,5 @@
+use bytemuck::cast_slice;
+use cgmath::Vector3;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Buffer, Device,
@@ -25,27 +27,37 @@ pub enum Axis {
 // The chunk coordinates are left handed
 pub struct Chunk {
     // Z * Y * X
+    position: Vector3<f32>,
     voxels: Box<[u32; 32 * 32]>,
     quads: Vec<Quad>,
     buffer: Option<Buffer>,
 }
 
 impl Chunk {
-    pub fn empty() -> Chunk {
-        Chunk {
+    pub fn empty(position: Vector3<f32>) -> Chunk {
+        let mut quads = Vec::with_capacity(2 ^ 16);
+        quads.extend_from_slice(&[Quad::default(); 3]);
+
+        let mut chunk = Chunk {
+            position,
             voxels: Box::new([0u32; 32 * 32]),
-            quads: Vec::with_capacity(2 ^ 16),
+            quads,
             buffer: None,
-        }
+        };
+
+        chunk.set_position(position);
+
+        chunk
     }
 
-    pub fn amogus(&mut self) {
-        self.quads.push(Quad::new(Direction::Up, 0, 1, 1, 120));
-        self.quads.push(Quad::new(Direction::Down, 0, 1, 1, 69));
-        self.quads.push(Quad::new(Direction::Left, 0, 1, 1, 29));
-        self.quads.push(Quad::new(Direction::Right, 0, 1, 1, 79));
-        self.quads.push(Quad::new(Direction::Front, 0, 1, 1, 45));
-        self.quads.push(Quad::new(Direction::Back, 0, 1, 1, 45));
+    pub fn get_position(&self) -> Vector3<f32> {
+        self.position
+    }
+
+    pub fn set_position(&mut self, position: Vector3<f32>) {
+        let tmp = [position.x, position.y, position.z];
+        let dst: &mut [u8] = bytemuck::cast_slice_mut(&mut self.quads[0..3]);
+        dst.copy_from_slice(cast_slice(&tmp));
     }
 
     /// Sets voxel state inside a chunk
@@ -65,123 +77,91 @@ impl Chunk {
     }
 
     pub fn remesh(&mut self) {
-        let mut previous = [0u32; 32];
-        let mut current = [0u32; 32];
+        self.quads.truncate(3);
 
-        // Left
+        let mut buffer = [[0u32; 32]; 34];
+
+        // X-Axis
         for n in 0..32 {
-            self.slice(Axis::X, n, &mut current);
-            // "Vertical"
-            for a in 0..32 {
-                // "Horizontal"
-                for b in 0..32 {
-                    if previous[a] & (2147483648 >> b) == 0 && current[a] & (2147483648 >> b) != 0 {
-                        self.quads
-                            .push(Quad::new(Direction::Left, n, 31 - a, b, 69));
-                    }
-                }
-            }
-
-            previous.copy_from_slice(&current);
+            self.slice(Axis::X, n, &mut buffer[n + 1]);
         }
 
-        previous = [0u32; 32];
-
-        // Right
-        for n in 0..32 {
-            self.slice(Axis::X, 31 - n, &mut current);
+        for n in 1..33 {
             // "Vertical"
             for a in 0..32 {
                 // "Horizontal"
                 for b in 0..32 {
-                    if previous[a] & (2147483648 >> b) == 0 && current[a] & (2147483648 >> b) != 0 {
+                    let right = &buffer[n - 1];
+                    let mid = &buffer[n];
+                    let left = &buffer[n + 1];
+
+                    if left[a] & (2147483648 >> b) == 0 && mid[a] & (2147483648 >> b) != 0 {
                         self.quads
-                            .push(Quad::new(Direction::Right, n, 31 - a, b, 69));
+                            .push(Quad::new(Direction::Left, n - 1, 31 - a, b, 69));
+                    }
+                    if mid[a] & (2147483648 >> b) != 0 && right[a] & (2147483648 >> b) == 0 {
+                        self.quads
+                            .push(Quad::new(Direction::Right, n - 1, 31 - a, b, 69));
                     }
                 }
             }
-
-            previous.copy_from_slice(&current);
         }
 
-        previous = [0u32; 32];
-
-        // Up
+        // Y-Axis
         for n in 0..32 {
-            self.slice(Axis::Y, n, &mut current);
-            // "Vertical"
-            for a in 0..32 {
-                // "Horizontal"
-                for b in 0..32 {
-                    if previous[a] & (2147483648 >> b) == 0 && current[a] & (2147483648 >> b) != 0 {
-                        self.quads.push(Quad::new(Direction::Up, b, n, 31 - a, 69));
-                    }
-                }
-            }
-
-            previous.copy_from_slice(&current);
+            self.slice(Axis::Y, n, &mut buffer[n + 1]);
         }
 
-        previous = [0u32; 32];
-
-        // Down
-        for n in 0..32 {
-            self.slice(Axis::Y, 31 - n, &mut current);
+        for n in 1..33 {
             // "Vertical"
             for a in 0..32 {
                 // "Horizontal"
                 for b in 0..32 {
-                    if previous[a] & (2147483648 >> b) == 0 && current[a] & (2147483648 >> b) != 0 {
+                    let up = &buffer[n + 1];
+                    let mid = &buffer[n];
+                    let down = &buffer[n - 1];
+
+                    if up[a] & (2147483648 >> b) == 0 && mid[a] & (2147483648 >> b) != 0 {
                         self.quads
-                            .push(Quad::new(Direction::Down, b, 31 - n, 31 - a, 69));
+                            .push(Quad::new(Direction::Up, b, n - 1, 31 - a, 69));
+                    }
+                    if mid[a] & (2147483648 >> b) != 0 && down[a] & (2147483648 >> b) == 0 {
+                        self.quads
+                            .push(Quad::new(Direction::Down, b, n - 1, 31 - a, 69));
                     }
                 }
             }
-
-            previous.copy_from_slice(&current);
         }
 
-        previous = [0u32; 32];
-
-        // Front
+        // Z-Axis
         for n in 0..32 {
-            self.slice(Axis::Z, n, &mut current);
-            // "Vertical"
-            for a in 0..32 {
-                // "Horizontal"
-                for b in 0..32 {
-                    if previous[a] & (2147483648 >> b) == 0 && current[a] & (2147483648 >> b) != 0 {
-                        self.quads
-                            .push(Quad::new(Direction::Front, b, 31 - a, n, 69));
-                    }
-                }
-            }
-
-            previous.copy_from_slice(&current);
+            self.slice(Axis::Z, n, &mut buffer[n + 1]);
         }
 
-        previous = [0u32; 32];
-
-        // Back
-        for n in 0..32 {
-            self.slice(Axis::Z, 31 - n, &mut current);
+        for n in 1..33 {
             // "Vertical"
             for a in 0..32 {
                 // "Horizontal"
                 for b in 0..32 {
-                    if previous[a] & (2147483648 >> b) == 0 && current[a] & (2147483648 >> b) != 0 {
+                    let front = &buffer[n - 1];
+                    let mid = &buffer[n];
+                    let back = &buffer[n + 1];
+
+                    if front[a] & (2147483648 >> b) == 0 && mid[a] & (2147483648 >> b) != 0 {
                         self.quads
-                            .push(Quad::new(Direction::Back, b, 31 - a, 31 - n, 69));
+                            .push(Quad::new(Direction::Front, b, 31 - a, n - 1, 69));
+                    }
+                    if mid[a] & (2147483648 >> b) != 0 && back[a] & (2147483648 >> b) == 0 {
+                        self.quads
+                            .push(Quad::new(Direction::Back, b, 31 - a, n - 1, 69));
                     }
                 }
             }
-
-            previous.copy_from_slice(&current);
         }
     }
 
     pub fn quads(&self) -> &[Quad] {
-        &self.quads
+        &self.quads[3.min(self.quads.len())..]
     }
 
     pub fn allocate(&mut self, device: &Device) -> bool {
@@ -189,7 +169,7 @@ impl Chunk {
             self.buffer = Some(device.create_buffer_init(&BufferInitDescriptor {
                 label: None,
                 contents: bytemuck::cast_slice(&self.quads),
-                usage: wgpu::BufferUsages::VERTEX,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
             }));
 
             return true;
@@ -236,7 +216,7 @@ fn test_set_get() {
     for z in 0..32 {
         for y in 0..32 {
             for x in 0..32 {
-                let mut chunk = Chunk::empty();
+                let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
 
                 chunk.set(x, y, z, true);
                 assert!(chunk.get(x, y, z));
@@ -255,7 +235,7 @@ fn test_slice() {
 
     // X-Axis
     for n in 0..32 {
-        let mut chunk = Chunk::empty();
+        let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
 
         for y in 0..32 {
             for z in 0..32 {
@@ -272,7 +252,7 @@ fn test_slice() {
 
     // Y-Axis
     for n in 0..32 {
-        let mut chunk = Chunk::empty();
+        let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
 
         for x in 0..32 {
             for z in 0..32 {
@@ -289,7 +269,7 @@ fn test_slice() {
 
     // Z-Axis
     for n in 0..32 {
-        let mut chunk = Chunk::empty();
+        let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
 
         for y in 0..32 {
             for x in 0..32 {

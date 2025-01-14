@@ -5,12 +5,14 @@ struct CameraUniform {
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
 
-// Palette
-struct Palette {
-    palette: array<vec4<f32>,128>,
-};
 @group(1) @binding(0)
-var<uniform> palette: Palette;
+var<uniform> transform: vec3<f32>;
+
+@group(2) @binding(0)
+var<uniform> offset: vec3<f32>;
+
+@group(3) @binding(0)
+var<uniform> palette: array<vec4<f32>,128>;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -24,9 +26,6 @@ struct VertexOutput {
 struct InstanceInput {
     @location(1) instance: u32,
 };
-
-
-
 
 @vertex
 fn vs_main(
@@ -71,9 +70,9 @@ fn vs_main(
         default: {}
     }
 
-    position += vec3(f32(position_x), f32(position_y), f32(position_z));
+    position += vec3(f32(position_x), f32(position_y), f32(position_z)) + offset;
 
-    out.color = palette.palette[texture_id];
+    out.color = palette[texture_id];
 
     out.clip_position = camera.view_proj * vec4<f32>(position, 1.0);
 

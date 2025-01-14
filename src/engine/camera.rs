@@ -132,6 +132,10 @@ impl Camera {
         &self.camera_bind_group_layout
     }
 
+    pub fn up(&self) -> Vector3<f32> {
+        self.up
+    }
+
     fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
         // 1.
         let view = cgmath::Matrix4::look_at_rh(self.eye.load(), self.target.load(), self.up);

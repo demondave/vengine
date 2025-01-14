@@ -1,5 +1,5 @@
 [package]
-name = "game"
+name = "vengine"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,7 @@ edition = "2021"
 winit = { version = "0.29", features = ["rwh_05"] }
 wgpu = "22.1.0"
 cgmath = "0.18.0"
-bytemuck = { version = "1.12", features = ["derive"] }
+bytemuck = { version = "1.12", features = ["derive", "extern_crate_alloc"] }
 ahash = "0.8.11"
 env_logger = "0.10"
 log = "0.4"
@@ -22,3 +22,4 @@ rustflags = ["-C", "link-arg=--ld-path=/usr/local/bin/mold"]
 [profile.dev]
 debug = 0
 strip = "debuginfo"
+
