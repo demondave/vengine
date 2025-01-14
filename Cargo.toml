@@ -4,16 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-winit = { version = "0.29", features = ["rwh_05"] }
-wgpu = "22.1.0"
-cgmath = "0.18.0"
-bytemuck = { version = "1.12", features = ["derive", "extern_crate_alloc"] }
 ahash = "0.8.11"
+bytemuck = { version = "1.12", features = ["derive", "extern_crate_alloc"] }
+cgmath = "0.18.0"
+colorgrad = "0.7.0"
+crossbeam = "0.8.4"
 env_logger = "0.10"
 log = "0.4"
 pollster = "0.3"
-colorgrad = "0.7.0"
-crossbeam = "0.8.4"
+wgpu = "22.1.0"
+winit = { version = "0.29", features = ["rwh_05"] }
 
 [target.x86_64-unknown-linux-gnu]
 linker = "/usr/bin/clang-15"
@@ -22,4 +22,3 @@ rustflags = ["-C", "link-arg=--ld-path=/usr/local/bin/mold"]
 [profile.dev]
 debug = 0
 strip = "debuginfo"
-
