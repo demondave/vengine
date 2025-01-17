@@ -190,7 +190,9 @@ impl Chunk {
 
     fn slice(&self, axis: Axis, n: usize, buffer: &mut [u32; 32]) {
         match axis {
-            Axis::X => {
+            Axis::X =>
+            {
+                #[allow(clippy::needless_range_loop)]
                 for y in 0..32 {
                     for z in 0..32 {
                         buffer[y] |= ((self.voxels[z * 32 + y] << n) & 2147483648) >> z;
@@ -202,7 +204,9 @@ impl Chunk {
                     buffer[31 - z] = self.voxels[z * 32 + (31 - n)]
                 }
             }
-            Axis::Z => {
+            Axis::Z =>
+            {
+                #[allow(clippy::needless_range_loop)]
                 for y in 0..32 {
                     buffer[y] = self.voxels[(n * 32) + y];
                 }
@@ -211,81 +215,76 @@ impl Chunk {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[test]
+fn test_set_get() {
+    for z in 0..32 {
+        for y in 0..32 {
+            for x in 0..32 {
+                let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
 
-    #[test]
-    fn test_set_get() {
-        for z in 0..32 {
-            for y in 0..32 {
-                for x in 0..32 {
-                    let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
-
-                    chunk.set(x, y, z, true);
-                    assert!(chunk.get(x, y, z));
-                }
+                chunk.set(x, y, z, true);
+                assert!(chunk.get(x, y, z));
             }
         }
     }
+}
 
-    #[test]
-    fn test_slice() {
-        let mut target = [u32::MAX; 32];
+#[test]
+fn test_slice() {
+    let mut target = [u32::MAX; 32];
 
-        target[30] ^= 1 << 30;
+    target[30] ^= 1 << 30;
 
-        let mut buffer = [0u32; 32];
+    let mut buffer = [0u32; 32];
 
-        // X-Axis
-        for n in 0..32 {
-            let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
+    // X-Axis
+    for n in 0..32 {
+        let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
 
-            for y in 0..32 {
-                for z in 0..32 {
-                    chunk.set(n, z, y, true);
-                }
+        for y in 0..32 {
+            for z in 0..32 {
+                chunk.set(n, z, y, true);
             }
-
-            chunk.set(n, 1, 1, false);
-
-            chunk.slice(Axis::X, n, &mut buffer);
-
-            assert_eq!(buffer, target);
         }
 
-        // Y-Axis
-        for n in 0..32 {
-            let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
+        chunk.set(n, 1, 1, false);
 
+        chunk.slice(Axis::X, n, &mut buffer);
+
+        assert_eq!(buffer, target);
+    }
+
+    // Y-Axis
+    for n in 0..32 {
+        let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
+
+        for x in 0..32 {
+            for z in 0..32 {
+                chunk.set(x, n, z, true);
+            }
+        }
+
+        chunk.set(1, n, 1, false);
+
+        chunk.slice(Axis::Y, n, &mut buffer);
+
+        assert_eq!(buffer, target);
+    }
+
+    // Z-Axis
+    for n in 0..32 {
+        let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
+
+        for y in 0..32 {
             for x in 0..32 {
-                for z in 0..32 {
-                    chunk.set(x, n, z, true);
-                }
+                chunk.set(x, y, n, true);
             }
-
-            chunk.set(1, n, 1, false);
-
-            chunk.slice(Axis::Y, n, &mut buffer);
-
-            assert_eq!(buffer, target);
         }
 
-        // Z-Axis
-        for n in 0..32 {
-            let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
+        chunk.set(1, 1, n, false);
 
-            for y in 0..32 {
-                for x in 0..32 {
-                    chunk.set(x, y, n, true);
-                }
-            }
+        chunk.slice(Axis::Z, n, &mut buffer);
 
-            chunk.set(1, 1, n, false);
-
-            chunk.slice(Axis::Z, n, &mut buffer);
-
-            assert_eq!(buffer, target);
-        }
+        assert_eq!(buffer, target);
     }
 }

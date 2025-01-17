@@ -1,9 +1,7 @@
 use cgmath::{Matrix4, SquareMatrix, Vector3};
-use chunk::Chunk;
 use wgpu::Device;
 
-pub mod chunk;
-pub mod quad;
+use super::chunk::Chunk;
 
 pub struct Object {
     transform: Matrix4<f32>,
@@ -14,7 +12,6 @@ impl Object {
     pub fn new(device: &Device, position: Vector3<f32>) -> Object {
         Object {
             transform: Matrix4::identity(),
-
             chunks: Vec::new(),
         }
     }

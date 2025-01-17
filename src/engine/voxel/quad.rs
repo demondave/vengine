@@ -58,34 +58,29 @@ impl Debug for Quad {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[test]
+fn test_quad() {
+    let directions = &[
+        Direction::Up,
+        Direction::Down,
+        Direction::Left,
+        Direction::Right,
+        Direction::Front,
+        Direction::Back,
+    ];
 
-    #[test]
-    fn test_quad() {
-        let directions = &[
-            Direction::Up,
-            Direction::Down,
-            Direction::Left,
-            Direction::Right,
-            Direction::Front,
-            Direction::Back,
-        ];
+    for d in directions {
+        for z in 0..32 {
+            for y in 0..32 {
+                for x in 0..32 {
+                    for t in 0..128 {
+                        let quad = Quad::new(*d, x, y, z, t);
 
-        for d in directions {
-            for z in 0..32 {
-                for y in 0..32 {
-                    for x in 0..32 {
-                        for t in 0..128 {
-                            let quad = Quad::new(*d, x, y, z, t);
-
-                            assert_eq!(quad.x(), x as u32);
-                            assert_eq!(quad.y(), y as u32);
-                            assert_eq!(quad.z(), z as u32);
-                            assert_eq!(quad.texture_id(), t as u32);
-                            assert_eq!(quad.direction(), *d);
-                        }
+                        assert_eq!(quad.x(), x as u32);
+                        assert_eq!(quad.y(), y as u32);
+                        assert_eq!(quad.z(), z as u32);
+                        assert_eq!(quad.texture_id(), t as u32);
+                        assert_eq!(quad.direction(), *d);
                     }
                 }
             }

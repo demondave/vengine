@@ -1,3 +1,44 @@
+use crate::engine::core::engine::Engine;
+use winit::event::{Event, WindowEvent};
+
+pub struct EventHandler {
+    engine: &'static Engine<'static>,
+}
+
+impl EventHandler {
+    pub fn new(engine: &'static Engine) -> Self {
+        Self { engine }
+    }
+
+    pub fn handle(&self) {
+        let events = self.engine.events();
+
+        let id = self.engine.window().id();
+
+        while let Ok(event) = events.recv() {
+            if let Event::WindowEvent { window_id, event } = event {
+                if window_id == id {
+                    self.handle_window_event(event);
+                }
+            }
+        }
+    }
+
+    pub fn handle_window_event(&self, event: WindowEvent) {
+        match event {
+            WindowEvent::CloseRequested => {
+                self.engine.exit();
+            }
+            WindowEvent::Resized(size) => {
+                // TODO
+                // self.engine.renderer().resize(size.width, size.height);
+            }
+            _ => {}
+        }
+    }
+}
+
+/*
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use ahash::AHashMap;
@@ -236,3 +277,4 @@ impl Input {
         }
     }
 }
+*/

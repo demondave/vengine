@@ -1,6 +1,6 @@
 use wgpu::{BindGroupLayout, Device, RenderPipeline, TextureFormat};
 
-use crate::engine::{camera::Camera, palette::Palette, texture};
+use crate::engine::renderer::{camera::Camera, palette::Palette, texture::Texture};
 
 pub fn voxel_pipeline(
     device: &Device,
@@ -57,7 +57,7 @@ pub fn voxel_pipeline(
             conservative: false,
         },
         depth_stencil: Some(wgpu::DepthStencilState {
-            format: texture::Texture::DEPTH_FORMAT,
+            format: Texture::DEPTH_FORMAT,
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::Less, // 1.
             stencil: wgpu::StencilState::default(),     // 2.
