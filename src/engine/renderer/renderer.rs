@@ -1,8 +1,8 @@
 use std::sync::Mutex;
 
-use cgmath::Point3;
+use cgmath::{Matrix, Point3};
 use crossbeam::atomic::AtomicCell;
-use wgpu::{util::DeviceExt, BindGroup, Buffer, RenderPipeline};
+use wgpu::{util::DeviceExt, Buffer, RenderPipeline};
 
 use crate::engine::voxel::object::Object;
 
@@ -10,6 +10,13 @@ use super::{
     backend::Backend, camera::Camera, palette::Palette, pipeline::voxels::voxel_pipeline,
     texture::Texture,
 };
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct PushConstant {
+    transform: [f32; 4 * 4],
+    offset: [i32; 3],
+}
 
 pub struct Renderer<'a> {
     // Backend
@@ -20,9 +27,6 @@ pub struct Renderer<'a> {
     voxel_pipeline: RenderPipeline,
     // Camera
     camera: Camera,
-    // Object transform
-    object_transform_buffer: Buffer,
-    object_transform_bindgroup: BindGroup,
     // Palette
     palette: Palette,
     // Depth texture
@@ -33,45 +37,6 @@ pub struct Renderer<'a> {
 
 impl<'a> Renderer<'a> {
     pub fn new(backend: Backend<'a>, size: (u32, u32)) -> Self {
-        // Object transform
-        let object_transform_buffer =
-            backend
-                .device()
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("vengine::object_transform_buffer"),
-                    contents: bytemuck::cast_slice(&[0f32; 4 * 4]),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                });
-
-        let object_transform_bindgroup_layout =
-            backend
-                .device()
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                    label: Some("vengine::object_transform_bindgroup_layout"),
-                });
-
-        let object_transform_bindgroup =
-            backend
-                .device()
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &object_transform_bindgroup_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: object_transform_buffer.as_entire_binding(),
-                    }],
-                    label: Some("vengine::chunk_offset_bind_group"),
-                });
-
         // Camera related
         let camera = Camera::new(
             Point3::new(0.0, 5.0, 2.0),
@@ -109,15 +74,12 @@ impl<'a> Renderer<'a> {
             &camera,
             &palette,
             *backend.surface_format(),
-            &object_transform_bindgroup_layout,
         );
 
         Self {
             backend,
             size: AtomicCell::new(size),
             camera,
-            object_transform_bindgroup,
-            object_transform_buffer,
 
             palette,
             depth_texture: Mutex::new(depth_texture),
@@ -131,25 +93,6 @@ impl<'a> Renderer<'a> {
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-
-        // Object transform update
-        let mut copy_encoder =
-            self.backend()
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("vengine::copy_encoder"),
-                });
-
-        // Object transform
-        copy_encoder.copy_buffer_to_buffer(
-            object.transform_buffer(),
-            0,
-            &self.object_transform_buffer,
-            0,
-            size_of::<[f32; 4 * 4]>() as u64,
-        );
-
-        self.backend().queue().submit(Some(copy_encoder.finish()));
 
         let mut encoder =
             self.backend()
@@ -190,26 +133,34 @@ impl<'a> Renderer<'a> {
 
             render_pass.set_pipeline(&self.voxel_pipeline);
             render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
-            render_pass.set_bind_group(1, &self.object_transform_bindgroup, &[]);
-            render_pass.set_bind_group(2, self.palette.bind_group(), &[]);
+            render_pass.set_bind_group(1, self.palette.bind_group(), &[]);
 
             // Quad buffer (bleibt für alle Chunks gleich)
             render_pass.set_vertex_buffer(0, self.quad.slice(..));
 
-            for (pos, chunk) in object.chunks() {
+            let mut pc = PushConstant {
+                transform: [0f32; 4 * 4],
+                offset: [0i32; 3],
+            };
+
+            let tmp = unsafe { std::slice::from_raw_parts(object.transform().as_ptr(), 4 * 4) };
+
+            pc.transform[..].copy_from_slice(tmp);
+
+            for (_, chunk) in object.chunks() {
                 if let Some(buffer) = chunk.buffer() {
                     // Update chunk offset direkt in der Queue
                     render_pass.set_push_constants(
                         wgpu::ShaderStages::VERTEX,
                         0,
-                        bytemuck::cast_slice(&[pos.x, pos.y, pos.z]),
+                        bytemuck::cast_slice(&[pc]),
                     );
 
                     // Set instance buffer
-                    render_pass.set_vertex_buffer(1, buffer.slice(size_of::<[i32; 3]>() as u64..));
+                    render_pass.set_vertex_buffer(1, buffer.slice(..));
 
                     // Draw chunk
-                    render_pass.draw(0..4, 0..chunk.quads().len() as u32 - 3);
+                    render_pass.draw(0..4, 0..chunk.quads().len() as u32);
                 }
             }
         } // render_pass wird hier dropped

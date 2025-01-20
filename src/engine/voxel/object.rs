@@ -1,13 +1,17 @@
 use std::{collections::hash_map::Iter, sync::Arc};
 
 use ahash::{HashMap, HashMapExt};
-use cgmath::{Matrix, Matrix4, SquareMatrix, Vector3};
+use cgmath::{Matrix4, Vector3};
+use dda_voxelize::DdaVoxelizer;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Buffer, Device,
 };
 
-use super::{chunk::Chunk, quad::Quad};
+use super::{
+    chunk::{Chunk, CHUNK_SIZE},
+    quad::Quad,
+};
 
 #[derive(Clone, Copy, Default)]
 pub struct Properties(u8);
@@ -77,8 +81,6 @@ impl ChunkEx {
 pub struct Object {
     // Object Transform
     transform: Matrix4<f32>,
-    // GPU Transform Buffer
-    transform_buffer: Buffer,
     // Chunks with additional information
     chunks: HashMap<Vector3<i32>, ChunkEx>,
     // Object properties, eg. if the object is axis aligned or static
@@ -89,29 +91,78 @@ pub struct Object {
 
 impl Object {
     pub fn new(device: Arc<Device>, transform: Matrix4<f32>, properties: Properties) -> Object {
-        let slice = unsafe { std::slice::from_raw_parts(transform.as_ptr(), 4 * 4) };
-
-        let transform_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::cast_slice(slice),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
-        });
-
         Object {
-            transform: Matrix4::identity(),
+            transform,
             chunks: HashMap::new(),
             properties,
-            transform_buffer,
             device,
         }
     }
 
-    pub fn transform_buffer(&self) -> &Buffer {
-        &self.transform_buffer
+    pub fn transform(&self) -> &Matrix4<f32> {
+        &self.transform
     }
 
-    pub fn voxelize_from_mesh() -> Object {
-        todo!()
+    pub fn voxelize_from_mesh(
+        device: Arc<Device>,
+        transform: Matrix4<f32>,
+        properties: Properties,
+        triangles: &[[[f32; 3]; 3]],
+    ) -> Object {
+        let mut voxelizer = DdaVoxelizer::new();
+
+        for triangle in triangles {
+            voxelizer.add_triangle(triangle, &|_, [_, _, _], __| [255u8, 255u8, 255u8]);
+        }
+
+        let voxels = voxelizer.finalize();
+
+        let mut chunks: HashMap<Vector3<i32>, ChunkEx> = HashMap::new();
+
+        for (voxel, _) in voxels {
+            let pos = Vector3::new(
+                voxel[0] / CHUNK_SIZE as i32,
+                voxel[1] / CHUNK_SIZE as i32,
+                voxel[2] / CHUNK_SIZE as i32,
+            );
+
+            let chunk = match chunks.get_mut(&pos) {
+                Some(r) => r,
+                None => {
+                    chunks.insert(
+                        pos,
+                        ChunkEx {
+                            chunk: Chunk::empty(),
+                            quads: Vec::new(),
+                            buffer: None,
+                        },
+                    );
+
+                    chunks.get_mut(&pos).unwrap()
+                }
+            };
+
+            // Berechne lokale Koordinaten im Chunk
+            let local_x = voxel[0] - (pos.x * CHUNK_SIZE as i32);
+            let local_y = voxel[1] - (pos.y * CHUNK_SIZE as i32);
+            let local_z = voxel[2] - (pos.z * CHUNK_SIZE as i32);
+
+            chunk
+                .chunk
+                .set(local_x as usize, local_y as usize, local_z as usize, true);
+        }
+
+        for chunk in chunks.values_mut() {
+            chunk.chunk.remesh(&mut chunk.quads);
+            chunk.allocate(&device);
+        }
+
+        Object {
+            transform,
+            chunks,
+            properties,
+            device,
+        }
     }
 
     pub fn properties(&self) -> &Properties {
@@ -136,14 +187,6 @@ impl Object {
             quads: Vec::with_capacity(2 ^ 16),
             buffer: None,
         };
-
-        chunk.quads.extend_from_slice(&[Quad::default(); 3]);
-
-        let tmp = [offset.x, offset.y, offset.z];
-        let dst: &mut [u8] = bytemuck::cast_slice_mut(&mut chunk.quads[0..3]);
-        dst.copy_from_slice(bytemuck::cast_slice(&tmp));
-
-        chunk.quads.truncate(3);
 
         if allocate {
             chunk.chunk.remesh(&mut chunk.quads);

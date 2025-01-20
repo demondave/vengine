@@ -14,6 +14,8 @@ log = "0.4"
 pollster = "0.3"
 wgpu = "22.1.0"
 winit = "0.29"
+dda-voxelize = { git = "https://github.com/MIERUNE/dda-voxelize-rs" }
+obj-rs = "0.7.4"
 
 [target.x86_64-unknown-linux-gnu]
 linker = "/usr/bin/clang-15"

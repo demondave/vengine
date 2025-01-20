@@ -1,4 +1,4 @@
-use wgpu::{BindGroupLayout, Device, RenderPipeline, TextureFormat};
+use wgpu::{Device, RenderPipeline, TextureFormat};
 
 use crate::engine::renderer::{camera::Camera, palette::Palette, texture::Texture};
 
@@ -7,18 +7,13 @@ pub fn voxel_pipeline(
     camera: &Camera,
     palette: &Palette,
     format: TextureFormat,
-    object_transform_bindgroup_layout: &BindGroupLayout,
 ) -> RenderPipeline {
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("vengine::voxel_pipeline_layout"),
-        bind_group_layouts: &[
-            camera.bind_group_layout(),
-            object_transform_bindgroup_layout,
-            palette.bind_group_layout(),
-        ],
+        bind_group_layouts: &[camera.bind_group_layout(), palette.bind_group_layout()],
         push_constant_ranges: &[wgpu::PushConstantRange {
             stages: wgpu::ShaderStages::VERTEX,
-            range: 0..12,
+            range: 0..(size_of::<[f32; 4 * 4]>() + size_of::<[i32; 3]>()) as u32,
         }],
     });
 

@@ -498,6 +498,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "dda-voxelize"
+version = "0.2.0-alpha.1"
+source = "git+https://github.com/MIERUNE/dda-voxelize-rs#1e0844a873262f13b19a709e188a3df22a6fbf97"
+dependencies = [
+ "glam",
+ "hashbrown 0.14.5",
+ "log",
+]
+
+[[package]]
 name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -592,8 +602,10 @@ dependencies = [
  "cgmath",
  "colorgrad",
  "crossbeam",
+ "dda-voxelize",
  "env_logger",
  "log",
+ "obj-rs",
  "pollster",
  "wgpu",
  "winit",
@@ -630,6 +642,12 @@ dependencies = [
  "log",
  "xml-rs",
 ]
+
+[[package]]
+name = "glam"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "779ae4bf7e8421cf91c0b3b64e7e8b40b862fba4d393f59150042de7c4965a94"
 
 [[package]]
 name = "glow"
@@ -1015,6 +1033,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.87",
+]
+
+[[package]]
+name = "obj-rs"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8247fd8f66340ad9c969f96e63a80a2f74b04e5403d92584b75e046006f4c7e1"
+dependencies = [
+ "num-traits",
+ "serde",
 ]
 
 [[package]]

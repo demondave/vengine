@@ -1,5 +1,8 @@
 use super::quad::Quad;
 
+pub const CHUNK_SIZE: usize = 32;
+pub const VOXEL_SIZE: f32 = 1.0;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Direction {
     Up = 0,
@@ -32,6 +35,10 @@ impl Chunk {
     /// Sets voxel state inside a chunk
     /// The voxel coordinate system is left handed
     pub fn set(&mut self, x: usize, y: usize, z: usize, state: bool) {
+        assert!(x < CHUNK_SIZE);
+        assert!(y < CHUNK_SIZE);
+        assert!(z < CHUNK_SIZE);
+
         if state {
             self.voxels[(z * 32) + (31 - y)] |= 2147483648 >> x;
         } else {
@@ -42,6 +49,10 @@ impl Chunk {
     /// Gets a voxel state inside a chunk
     /// The voxel coordinate system is left handed
     pub fn get(&self, x: usize, y: usize, z: usize) -> bool {
+        assert!(x < CHUNK_SIZE);
+        assert!(y < CHUNK_SIZE);
+        assert!(z < CHUNK_SIZE);
+
         self.voxels[(z * 32) + (31 - y)] & (2147483648 >> x) != 0
     }
 

@@ -1,3 +1,48 @@
 .idea
+.vscode
+
+*.obj
+*.ply
+*.gltf
+*.vox
 
 /target
+
+# 3D formats
+*.fbx
+*.obj
+*.mtl
+*.3ds
+*.blend
+*.blend1
+*.blend2
+*.dae
+*.gltf
+*.glb
+*.stl
+*.ply
+*.x3d
+*.vrml
+*.3dm
+*.max
+*.c4d
+*.ma
+*.mb
+*.lwo
+*.lws
+*.lxo
+*.skp
+*.stp
+*.step
+
+# Point cloud formats
+*.pcd
+*.pts
+*.xyz
+
+# Texturs formats
+*.tga
+*.dds
+*.ktx
+*.basis
+*.hdr

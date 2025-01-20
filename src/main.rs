@@ -1,15 +1,15 @@
-use cgmath::{Matrix4, Point3, SquareMatrix, Vector3};
+use cgmath::{Matrix4, Point3, SquareMatrix};
 use colorgrad::preset::turbo;
 use engine::{
     core::{engine::Engine, window::Window},
     renderer::backend::Backend,
-    voxel::{
-        chunk::Chunk,
-        object::{Object, Properties},
-    },
+    voxel::object::{Object, Properties},
 };
 use input::EventHandler;
+use obj::{load_obj, Obj};
 use std::{
+    fs::File,
+    io::BufReader,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -71,6 +71,40 @@ fn setup(engine: &'static Engine) {
     properties.set_is_static(true);
     properties.set_is_axis_aligned(true);
 
+    // https://groups.csail.mit.edu/graphics/classes/6.837/F03/models/
+    let input = BufReader::new(File::open("teapot.obj").unwrap());
+    let obj: Obj = load_obj(input).unwrap();
+
+    let scale = 6.0;
+
+    fn scale_vec(vector: [f32; 3], scale: f32) -> [f32; 3] {
+        [vector[0] * scale, vector[1] * scale, vector[2] * scale]
+    }
+
+    let triangles = obj
+        .indices
+        .chunks(3)
+        .map(|c| {
+            [
+                scale_vec(obj.vertices[c[0] as usize].position, scale),
+                scale_vec(obj.vertices[c[1] as usize].position, scale),
+                scale_vec(obj.vertices[c[2] as usize].position, scale),
+            ]
+        })
+        .collect::<Vec<[[f32; 3]; 3]>>();
+
+    println!("Loaded");
+
+    let object = Object::voxelize_from_mesh(
+        engine.device().clone(),
+        Matrix4::identity(),
+        properties,
+        &triangles,
+    );
+
+    println!("Voxelized");
+
+    /*
     let mut object = Object::new(engine.device().clone(), Matrix4::identity(), properties);
 
     let mut chunk = Chunk::empty();
@@ -84,6 +118,7 @@ fn setup(engine: &'static Engine) {
     chunk.set(0, 0, 0, true);
 
     object.add_chunk(Vector3::new(0, 1, 0), chunk, true);
+    */
 
     // Render object
     while !engine.exited() {
