@@ -8,17 +8,18 @@ pub fn voxel_pipeline(
     palette: &Palette,
     format: TextureFormat,
     object_transform_bindgroup_layout: &BindGroupLayout,
-    chunk_offset_bindgroup_layout: &BindGroupLayout,
 ) -> RenderPipeline {
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("vengine::voxel_pipeline_layout"),
         bind_group_layouts: &[
             camera.bind_group_layout(),
             object_transform_bindgroup_layout,
-            chunk_offset_bindgroup_layout,
             palette.bind_group_layout(),
         ],
-        push_constant_ranges: &[],
+        push_constant_ranges: &[wgpu::PushConstantRange {
+            stages: wgpu::ShaderStages::VERTEX,
+            range: 0..12,
+        }],
     });
 
     let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/base.wgsl"));

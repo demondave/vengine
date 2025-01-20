@@ -1,10 +1,3 @@
-use bytemuck::cast_slice;
-use cgmath::Vector3;
-use wgpu::{
-    util::{BufferInitDescriptor, DeviceExt},
-    Buffer, Device,
-};
-
 use super::quad::Quad;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -26,38 +19,14 @@ pub enum Axis {
 
 // The chunk coordinates are left handed
 pub struct Chunk {
-    // Z * Y * X
-    position: Vector3<f32>,
     voxels: Box<[u32; 32 * 32]>,
-    quads: Vec<Quad>,
-    buffer: Option<Buffer>,
 }
 
 impl Chunk {
-    pub fn empty(position: Vector3<f32>) -> Chunk {
-        let mut quads = Vec::with_capacity(2 ^ 16);
-        quads.extend_from_slice(&[Quad::default(); 3]);
-
-        let mut chunk = Chunk {
-            position,
+    pub fn empty() -> Chunk {
+        Chunk {
             voxels: Box::new([0u32; 32 * 32]),
-            quads,
-            buffer: None,
-        };
-
-        chunk.set_position(position);
-
-        chunk
-    }
-
-    pub fn get_position(&self) -> Vector3<f32> {
-        self.position
-    }
-
-    pub fn set_position(&mut self, position: Vector3<f32>) {
-        let tmp = [position.x, position.y, position.z];
-        let dst: &mut [u8] = bytemuck::cast_slice_mut(&mut self.quads[0..3]);
-        dst.copy_from_slice(cast_slice(&tmp));
+        }
     }
 
     /// Sets voxel state inside a chunk
@@ -76,9 +45,7 @@ impl Chunk {
         self.voxels[(z * 32) + (31 - y)] & (2147483648 >> x) != 0
     }
 
-    pub fn remesh(&mut self) {
-        self.quads.truncate(3);
-
+    pub fn remesh(&mut self, out: &mut Vec<Quad>) {
         let mut buffer = [[0u32; 32]; 34];
 
         // X-Axis
@@ -96,12 +63,10 @@ impl Chunk {
                     let left = &buffer[n + 1];
 
                     if left[a] & (2147483648 >> b) == 0 && mid[a] & (2147483648 >> b) != 0 {
-                        self.quads
-                            .push(Quad::new(Direction::Left, n - 1, 31 - a, b, 69));
+                        out.push(Quad::new(Direction::Left, n - 1, 31 - a, b, 69));
                     }
                     if mid[a] & (2147483648 >> b) != 0 && right[a] & (2147483648 >> b) == 0 {
-                        self.quads
-                            .push(Quad::new(Direction::Right, n - 1, 31 - a, b, 69));
+                        out.push(Quad::new(Direction::Right, n - 1, 31 - a, b, 69));
                     }
                 }
             }
@@ -122,12 +87,10 @@ impl Chunk {
                     let down = &buffer[n - 1];
 
                     if up[a] & (2147483648 >> b) == 0 && mid[a] & (2147483648 >> b) != 0 {
-                        self.quads
-                            .push(Quad::new(Direction::Up, b, n - 1, 31 - a, 69));
+                        out.push(Quad::new(Direction::Up, b, n - 1, 31 - a, 69));
                     }
                     if mid[a] & (2147483648 >> b) != 0 && down[a] & (2147483648 >> b) == 0 {
-                        self.quads
-                            .push(Quad::new(Direction::Down, b, n - 1, 31 - a, 69));
+                        out.push(Quad::new(Direction::Down, b, n - 1, 31 - a, 69));
                     }
                 }
             }
@@ -148,44 +111,14 @@ impl Chunk {
                     let back = &buffer[n + 1];
 
                     if front[a] & (2147483648 >> b) == 0 && mid[a] & (2147483648 >> b) != 0 {
-                        self.quads
-                            .push(Quad::new(Direction::Front, b, 31 - a, n - 1, 69));
+                        out.push(Quad::new(Direction::Front, b, 31 - a, n - 1, 69));
                     }
                     if mid[a] & (2147483648 >> b) != 0 && back[a] & (2147483648 >> b) == 0 {
-                        self.quads
-                            .push(Quad::new(Direction::Back, b, 31 - a, n - 1, 69));
+                        out.push(Quad::new(Direction::Back, b, 31 - a, n - 1, 69));
                     }
                 }
             }
         }
-    }
-
-    pub fn quads(&self) -> &[Quad] {
-        &self.quads[3.min(self.quads.len())..]
-    }
-
-    pub fn allocate(&mut self, device: &Device) -> bool {
-        if !self.quads.is_empty() {
-            self.buffer = Some(device.create_buffer_init(&BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(&self.quads),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
-            }));
-
-            return true;
-        }
-
-        false
-    }
-
-    pub fn deallocate(&self) {
-        if let Some(buffer) = &self.buffer {
-            buffer.destroy();
-        }
-    }
-
-    pub fn buffer(&self) -> &Option<Buffer> {
-        &self.buffer
     }
 
     fn slice(&self, axis: Axis, n: usize, buffer: &mut [u32; 32]) {
@@ -220,7 +153,7 @@ fn test_set_get() {
     for z in 0..32 {
         for y in 0..32 {
             for x in 0..32 {
-                let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
+                let mut chunk = Chunk::empty();
 
                 chunk.set(x, y, z, true);
                 assert!(chunk.get(x, y, z));
@@ -239,7 +172,7 @@ fn test_slice() {
 
     // X-Axis
     for n in 0..32 {
-        let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
+        let mut chunk = Chunk::empty();
 
         for y in 0..32 {
             for z in 0..32 {
@@ -256,7 +189,7 @@ fn test_slice() {
 
     // Y-Axis
     for n in 0..32 {
-        let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
+        let mut chunk = Chunk::empty();
 
         for x in 0..32 {
             for z in 0..32 {
@@ -273,7 +206,7 @@ fn test_slice() {
 
     // Z-Axis
     for n in 0..32 {
-        let mut chunk = Chunk::empty(Vector3::new(0f32, 0f32, 0f32));
+        let mut chunk = Chunk::empty();
 
         for y in 0..32 {
             for x in 0..32 {

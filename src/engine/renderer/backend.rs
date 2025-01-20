@@ -1,18 +1,15 @@
 use crate::engine::core::window::Window;
 use std::sync::{Arc, Mutex};
 use wgpu::{
-    Adapter, Backends, Device, Instance, InstanceDescriptor, Queue, Surface, SurfaceCapabilities,
-    SurfaceConfiguration, TextureFormat,
+    Backends, Device, Instance, InstanceDescriptor, Queue, Surface, SurfaceConfiguration,
+    TextureFormat,
 };
 
 pub struct Backend<'a> {
-    instance: Instance,
     surface: Surface<'a>,
-    adapter: Adapter,
-    device: Device,
+    device: Arc<Device>,
     queue: Arc<Queue>,
     config: Mutex<SurfaceConfiguration>,
-    capabilities: SurfaceCapabilities,
     format: TextureFormat,
 }
 
@@ -37,14 +34,14 @@ impl<'a> Backend<'a> {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    required_features: wgpu::Features::empty(),
+                    required_features: wgpu::Features::PUSH_CONSTANTS,
                     // WebGL doesn't support all of wgpu's features, so if
                     // we're building for the web, we'll have to disable some.
-                    required_limits: if cfg!(target_arch = "wasm32") {
-                        wgpu::Limits::downlevel_webgl2_defaults()
-                    } else {
-                        wgpu::Limits::default()
+                    required_limits: wgpu::Limits {
+                        max_push_constant_size: 128, // Mindestens 12 Bytes, typischerweise 128 oder 256
+                        ..Default::default()
                     },
+
                     label: None,
                     memory_hints: Default::default(),
                 },
@@ -79,18 +76,15 @@ impl<'a> Backend<'a> {
         let queue = Arc::new(queue);
 
         Self {
-            adapter,
-            device,
+            device: Arc::new(device),
             queue,
-            instance,
             surface,
             config: Mutex::new(config),
-            capabilities: surface_caps,
             format: surface_format,
         }
     }
 
-    pub fn device(&self) -> &Device {
+    pub fn device(&self) -> &Arc<Device> {
         &self.device
     }
 

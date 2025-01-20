@@ -1,280 +1,166 @@
+use core::f32;
+use std::{
+    collections::HashMap,
+    thread::sleep,
+    time::{Duration, Instant},
+};
+
 use crate::engine::core::engine::Engine;
-use winit::event::{Event, WindowEvent};
+use cgmath::{InnerSpace, Vector2, Vector3, Zero};
+use winit::{
+    event::{Event, WindowEvent},
+    keyboard::{KeyCode, PhysicalKey},
+};
+
+const MOVEMENT_SPEED: f32 = 0.05;
+const X_SENSITIVITY: f32 = -0.00075;
+const Y_SENSITIVITY: f32 = 0.00075;
+const TICKS: f64 = 64.0;
 
 pub struct EventHandler {
     engine: &'static Engine<'static>,
+    cursor_position: Vector2<f32>,
+    keymap: HashMap<KeyCode, bool>,
 }
 
 impl EventHandler {
     pub fn new(engine: &'static Engine) -> Self {
-        Self { engine }
+        let keys = &[
+            KeyCode::KeyW,
+            KeyCode::KeyA,
+            KeyCode::KeyS,
+            KeyCode::KeyD,
+            KeyCode::Space,
+            KeyCode::ShiftLeft,
+        ];
+
+        Self {
+            engine,
+            cursor_position: Vector2::new(f32::NAN, f32::NAN),
+            keymap: HashMap::from_iter(keys.iter().map(|k| (*k, false))),
+        }
     }
 
-    pub fn handle(&self) {
+    pub fn handle(&mut self) {
         let events = self.engine.events();
 
         let id = self.engine.window().id();
 
-        while let Ok(event) = events.recv() {
-            if let Event::WindowEvent { window_id, event } = event {
-                if window_id == id {
-                    self.handle_window_event(event);
+        let duration = Duration::from_secs_f64(1.0 / TICKS);
+
+        loop {
+            let start = Instant::now();
+
+            if self.engine.exited() {
+                break;
+            }
+
+            while let Ok(event) = events.try_recv() {
+                if let Event::WindowEvent { window_id, event } = event {
+                    if window_id == id {
+                        self.handle_window_event(event);
+                    }
                 }
+            }
+
+            let mut offset: Vector3<f32> = Vector3::zero();
+
+            if *self.keymap.get(&KeyCode::KeyW).unwrap() {
+                offset.z += 1.0;
+            }
+
+            if *self.keymap.get(&KeyCode::KeyS).unwrap() {
+                offset.z -= 1.0;
+            }
+
+            if *self.keymap.get(&KeyCode::KeyA).unwrap() {
+                offset.x -= 1.0;
+            }
+
+            if *self.keymap.get(&KeyCode::KeyD).unwrap() {
+                offset.x += 1.0;
+            }
+
+            if *self.keymap.get(&KeyCode::Space).unwrap() {
+                offset.y += 1.0;
+            }
+
+            if *self.keymap.get(&KeyCode::ShiftLeft).unwrap() {
+                offset.y -= 1.0;
+            }
+
+            let eye = self.engine.camera().get_eye();
+            let look_at = self.engine.camera().get_look_at();
+
+            let direction = (look_at - eye).normalize();
+
+            let right = direction.cross(self.engine.camera().up()).normalize();
+
+            self.engine.camera().set_eye_no_update(
+                eye + (direction * offset.z * MOVEMENT_SPEED)
+                    + (right * offset.x * MOVEMENT_SPEED)
+                    + (self.engine.camera().up() * offset.y * MOVEMENT_SPEED),
+            );
+            self.engine.camera().set_look_at_no_update(
+                look_at
+                    + (direction * offset.z * MOVEMENT_SPEED)
+                    + (right * offset.x * MOVEMENT_SPEED)
+                    + (self.engine.camera().up() * offset.y * MOVEMENT_SPEED),
+            );
+            self.engine.camera().update();
+
+            let elapsed = start.elapsed();
+
+            if elapsed < duration {
+                sleep(duration - elapsed);
             }
         }
     }
 
-    pub fn handle_window_event(&self, event: WindowEvent) {
+    pub fn handle_window_event(&mut self, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
                 self.engine.exit();
             }
-            WindowEvent::Resized(size) => {
+            WindowEvent::CursorMoved {
+                device_id: _,
+                position,
+            } => {
+                let new = Vector2::new(position.x as f32, position.y as f32);
+
+                if self.cursor_position.x.is_nan() || self.cursor_position.y.is_nan() {
+                    self.cursor_position = new;
+                }
+
+                let diff = self.cursor_position - new;
+
+                self.engine.camera().add_yaw(diff.x * X_SENSITIVITY);
+
+                self.engine.camera().add_pitch(diff.y * Y_SENSITIVITY);
+
+                self.engine.camera().update_target();
+                self.engine.camera().update();
+
+                self.cursor_position = new;
+            }
+            WindowEvent::KeyboardInput {
+                device_id: _,
+                event,
+                is_synthetic: _,
+            } => {
+                if let PhysicalKey::Code(code) = event.physical_key {
+                    if let Some(state) = self.keymap.get_mut(&code) {
+                        *state = event.state.is_pressed();
+                    }
+                }
+            }
+
+            WindowEvent::Resized(_size) => {
                 // TODO
                 // self.engine.renderer().resize(size.width, size.height);
             }
+
             _ => {}
         }
     }
 }
-
-/*
-use std::sync::atomic::{AtomicBool, Ordering};
-
-use ahash::AHashMap;
-use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix3, Point3, Vector3};
-use winit::{
-    event::{DeviceId, Event, KeyEvent, WindowEvent},
-    event_loop::{EventLoop, EventLoopWindowTarget},
-    keyboard::{KeyCode, PhysicalKey},
-    window::{Window, WindowId},
-};
-
-use crate::engine::Engine;
-
-const MOVEMENT_SPEED: f32 = 0.05;
-const ROTATION_SPEED: f32 = 1.0;
-
-pub struct Input {
-    engine: &'static Engine<'static>,
-    event_loop: Option<EventLoop<()>>,
-    window_id: WindowId,
-    keys: AHashMap<KeyCode, AtomicBool>,
-}
-
-impl Input {
-    pub fn new(event_loop: EventLoop<()>, window: &Window, engine: &'static Engine) -> Self {
-        Self {
-            event_loop: Some(event_loop),
-            window_id: window.id(),
-            engine,
-            keys: AHashMap::new(),
-        }
-    }
-
-    pub fn listen(&mut self, keys: &[KeyCode]) {
-        for key in keys {
-            self.keys.insert(*key, AtomicBool::new(false));
-        }
-    }
-
-    pub fn is_pressed(&self, key: &KeyCode) -> bool {
-        match self.keys.get(key) {
-            Some(s) => s.load(Ordering::Relaxed),
-            None => {
-                panic!("key wasn't registered")
-            }
-        }
-    }
-
-    pub fn run(mut self) {
-        let event_loop = self.event_loop.take().unwrap();
-
-        event_loop
-            .run(move |event, control_flow| {
-                self.handle(event, control_flow);
-            })
-            .unwrap();
-    }
-
-    fn handle(&mut self, event: Event<()>, control_flow: &EventLoopWindowTarget<()>) {
-        match event {
-            Event::WindowEvent {
-                ref event,
-                window_id,
-            } => {
-                if window_id != self.window_id {
-                    return;
-                }
-
-                match event {
-                    WindowEvent::CloseRequested => {
-                        control_flow.exit();
-                    }
-                    WindowEvent::KeyboardInput {
-                        device_id,
-                        event,
-                        is_synthetic,
-                    } => {
-                        self.handle_keyboard_event(device_id, event, is_synthetic);
-                    }
-
-                    WindowEvent::Resized(size) => {
-                        //self.engine.resize(size.width, size.height);
-                    }
-                    _ => {}
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn handle_cursor_moved(&mut self, device_id: &DeviceId, event: &KeyEvent, is_synthetic: &bool) {
-    }
-
-    fn handle_keyboard_event(
-        &mut self,
-        device_id: &DeviceId,
-        event: &KeyEvent,
-        is_synthetic: &bool,
-    ) {
-        let key = match event.physical_key {
-            PhysicalKey::Code(c) => c,
-            PhysicalKey::Unidentified(_) => {
-                return;
-            }
-        };
-
-        let state = event.state.is_pressed();
-
-        match key {
-            // WASD
-            KeyCode::KeyW => {
-                let eye = self.engine.camera().get_eye();
-                let look_at = self.engine.camera().get_look_at();
-
-                let direction = (look_at - eye).normalize() * MOVEMENT_SPEED;
-
-                self.engine.camera().set_eye_no_update(eye + direction);
-                self.engine
-                    .camera()
-                    .set_look_at_no_update(look_at + direction);
-                self.engine.camera().update();
-            }
-            KeyCode::KeyA => {
-                let eye = self.engine.camera().get_eye();
-                let look_at = self.engine.camera().get_look_at();
-
-                let view_dir = (look_at - eye).normalize();
-
-                let right = view_dir.cross(self.engine.camera().up()).normalize() * MOVEMENT_SPEED;
-
-                self.engine.camera().set_eye_no_update(eye - right);
-                self.engine.camera().set_look_at_no_update(look_at - right);
-                self.engine.camera().update();
-            }
-            KeyCode::KeyS => {
-                let eye = self.engine.camera().get_eye();
-                let look_at = self.engine.camera().get_look_at();
-
-                let direction = (eye - look_at).normalize() * MOVEMENT_SPEED;
-
-                self.engine.camera().set_eye_no_update(eye + direction);
-                self.engine
-                    .camera()
-                    .set_look_at_no_update(look_at + direction);
-                self.engine.camera().update();
-            }
-            KeyCode::KeyD => {
-                let eye = self.engine.camera().get_eye();
-                let look_at = self.engine.camera().get_look_at();
-
-                let view_dir = (look_at - eye).normalize();
-
-                let right = view_dir.cross(self.engine.camera().up()).normalize() * -MOVEMENT_SPEED;
-
-                self.engine.camera().set_eye_no_update(eye - right);
-                self.engine.camera().set_look_at_no_update(look_at - right);
-                self.engine.camera().update();
-            }
-            // Space and Shift
-            KeyCode::Space => {
-                let eye = self.engine.camera().get_eye();
-                let look_at = self.engine.camera().get_look_at();
-                self.engine
-                    .camera()
-                    .set_eye_no_update(eye + Vector3::unit_y() * MOVEMENT_SPEED);
-                self.engine
-                    .camera()
-                    .set_look_at_no_update(look_at + Vector3::unit_y() * MOVEMENT_SPEED);
-                self.engine.camera().update();
-            }
-            KeyCode::ShiftLeft => {
-                let eye = self.engine.camera().get_eye();
-                let look_at = self.engine.camera().get_look_at();
-                self.engine
-                    .camera()
-                    .set_eye_no_update(eye + Vector3::unit_y() * -MOVEMENT_SPEED);
-                self.engine
-                    .camera()
-                    .set_look_at_no_update(look_at + Vector3::unit_y() * -MOVEMENT_SPEED);
-                self.engine.camera().update();
-            }
-            // Arrow-Keys
-            KeyCode::ArrowUp => {
-                let eye = self.engine.camera().get_eye();
-                let look_at = self.engine.camera().get_look_at();
-
-                let view_dir = (look_at - eye).normalize();
-
-                let right = view_dir.cross(self.engine.camera().up()).normalize();
-
-                let rotation = Matrix3::from_axis_angle(right, Deg(ROTATION_SPEED));
-
-                let relative = look_at - eye;
-
-                let look_at = (rotation * relative) + eye.to_vec();
-
-                self.engine.camera().set_look_at(Point3::from_vec(look_at));
-            }
-            KeyCode::ArrowDown => {
-                let eye = self.engine.camera().get_eye();
-                let look_at = self.engine.camera().get_look_at();
-
-                let view_dir = (look_at - eye).normalize();
-
-                let right = view_dir.cross(self.engine.camera().up()).normalize();
-
-                let rotation = Matrix3::from_axis_angle(right, Deg(-ROTATION_SPEED));
-
-                let relative = look_at - eye;
-
-                let look_at = (rotation * relative) + eye.to_vec();
-
-                self.engine.camera().set_look_at(Point3::from_vec(look_at));
-            }
-            KeyCode::ArrowLeft => {
-                let rotation: Matrix3<f32> = Matrix3::from_angle_y(Deg(ROTATION_SPEED));
-
-                let eye = self.engine.camera().get_eye();
-                let look_at =
-                    (rotation * (self.engine.camera().get_look_at() - eye)) + eye.to_vec();
-
-                self.engine.camera().set_look_at(Point3::from_vec(look_at));
-            }
-            KeyCode::ArrowRight => {
-                let rotation: Matrix3<f32> = Matrix3::from_angle_y(Deg(-ROTATION_SPEED));
-
-                let eye = self.engine.camera().get_eye();
-                let look_at =
-                    (rotation * (self.engine.camera().get_look_at() - eye)) + eye.to_vec();
-
-                self.engine.camera().set_look_at(Point3::from_vec(look_at));
-            }
-            _ => {
-                return;
-            }
-        }
-    }
-}
-*/

@@ -7,7 +7,7 @@ use winit::{
     dpi::PhysicalSize,
     event::Event,
     event_loop::{EventLoop, EventLoopProxy},
-    window::{WindowBuilder, WindowId},
+    window::{CursorGrabMode, WindowBuilder, WindowId},
 };
 
 use crate::engine::util::ptr::as_mut_ptr;
@@ -46,6 +46,13 @@ impl Window {
         let window = WindowBuilder::new()
             .with_inner_size(PhysicalSize::new(self.width, self.height))
             .build(&event_loop)
+            .unwrap();
+
+        window.set_cursor_visible(false);
+
+        window
+            .set_cursor_grab(CursorGrabMode::Confined)
+            .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked))
             .unwrap();
 
         // A little unsafe trick

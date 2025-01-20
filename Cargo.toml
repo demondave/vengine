@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ahash = "0.8.11"
+ahash = { version = "0.8.11", features = ["compile-time-rng"] }
 bytemuck = { version = "1.12", features = ["derive", "extern_crate_alloc"] }
 cgmath = "0.18.0"
 colorgrad = "0.7.0"

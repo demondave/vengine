@@ -6,13 +6,13 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 @group(1) @binding(0)
-var<uniform> transform: vec3<f32>;
+var<uniform> transform: mat4x4<f32>;
 
 @group(2) @binding(0)
-var<uniform> offset: vec3<f32>;
-
-@group(3) @binding(0)
 var<uniform> palette: array<vec4<f32>,128>;
+
+var<push_constant> offset: vec3<i32>;
+
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -26,6 +26,9 @@ struct VertexOutput {
 struct InstanceInput {
     @location(1) instance: u32,
 };
+
+const CHUNK_SIZE: f32 = 32.0;
+const VOXEL_SIZE: f32 = 1.0;
 
 @vertex
 fn vs_main(
@@ -70,7 +73,10 @@ fn vs_main(
         default: {}
     }
 
-    position += vec3(f32(position_x), f32(position_y), f32(position_z)) + offset;
+    position += vec3(f32(position_x), f32(position_y), f32(position_z)) + (vec3(f32(offset.x), f32(offset.y), f32(offset.z)) * CHUNK_SIZE * VOXEL_SIZE);
+
+    let pos4 = transform * vec4<f32>(position, 1.0);
+    position = (pos4.xyz / pos4.w);
 
     out.color = palette[texture_id];
 

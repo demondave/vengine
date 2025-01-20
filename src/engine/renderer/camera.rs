@@ -19,6 +19,8 @@ pub struct Camera {
     fovy: f32,
     znear: f32,
     zfar: f32,
+    yaw: AtomicCell<f32>,   // In Radians
+    pitch: AtomicCell<f32>, // In Radians
     camera_uniform: AtomicCell<CameraUniform>,
     camera_bind_group: BindGroup,
     camera_buffer: Buffer,
@@ -68,6 +70,8 @@ impl Camera {
             fovy: 45.0,
             znear: 0.1,
             zfar: 100.0,
+            yaw: AtomicCell::new(0.0),   // Start looking along -Z
+            pitch: AtomicCell::new(0.0), // Start looking straight ahead
             camera_uniform: AtomicCell::new(camera_uniform),
             camera_bind_group,
             camera_buffer,
@@ -75,9 +79,8 @@ impl Camera {
             queue,
         };
 
-        camera.camera_uniform.store(CameraUniform {
-            view_proj: camera.build_view_projection_matrix().into(),
-        });
+        camera.update_target();
+        camera.update();
 
         camera
     }
@@ -93,6 +96,51 @@ impl Camera {
             .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[tmp]));
     }
 
+    pub fn add_yaw(&self, delta: f32) {
+        let current_yaw = self.yaw.load();
+        let new_yaw = current_yaw + delta;
+        // Normalisiere den Yaw-Winkel auf den Bereich [0, 2π]
+        let normalized_yaw = new_yaw % (2.0 * std::f32::consts::PI);
+        self.yaw.store(normalized_yaw);
+        self.update_target();
+        self.update();
+    }
+
+    pub fn add_pitch(&self, delta: f32) {
+        let current_pitch = self.pitch.load();
+        let new_pitch = current_pitch + delta;
+        // Beschränke den Pitch-Winkel auf [-π/2, π/2]
+        let clamped_pitch = new_pitch
+            .max(-89.9_f32.to_radians())
+            .min(89.9_f32.to_radians());
+        self.pitch.store(clamped_pitch);
+        self.update_target();
+        self.update();
+    }
+    pub fn get_yaw(&self) -> f32 {
+        self.yaw.load()
+    }
+
+    pub fn get_pitch(&self) -> f32 {
+        self.pitch.load()
+    }
+
+    // Updates the target based on yaw and pitch
+    pub fn update_target(&self) {
+        let yaw = self.yaw.load();
+        let pitch = self.pitch.load();
+
+        // Calculate new target position using spherical coordinates
+        let new_target = Point3::new(
+            self.eye.load().x + yaw.cos() * pitch.cos(),
+            self.eye.load().y + pitch.sin(),
+            self.eye.load().z + yaw.sin() * pitch.cos(),
+        );
+
+        self.target.store(new_target);
+    }
+
+    // Rest of the implementation remains the same...
     pub fn set_aspect(&self, aspect: f32) {
         self.aspect.store(aspect);
     }
@@ -108,7 +156,6 @@ impl Camera {
 
     pub fn set_look_at_no_update(&self, n: Point3<f32>) {
         self.target.store(n);
-        self.update();
     }
 
     pub fn get_eye(&self) -> Point3<f32> {
@@ -117,6 +164,7 @@ impl Camera {
 
     pub fn set_eye(&self, n: Point3<f32>) {
         self.eye.store(n);
+        self.update_target();
         self.update();
     }
 
@@ -137,9 +185,7 @@ impl Camera {
     }
 
     fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
-        // 1.
         let view = cgmath::Matrix4::look_at_rh(self.eye.load(), self.target.load(), self.up);
-        // 2.
         let proj = cgmath::perspective(
             cgmath::Deg(self.fovy),
             self.aspect.load(),
@@ -147,7 +193,6 @@ impl Camera {
             self.zfar,
         );
 
-        // 3.
         OPENGL_TO_WGPU_MATRIX * proj * view
     }
 }

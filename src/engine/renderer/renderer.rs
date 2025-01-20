@@ -23,9 +23,6 @@ pub struct Renderer<'a> {
     // Object transform
     object_transform_buffer: Buffer,
     object_transform_bindgroup: BindGroup,
-    // Chunk offset
-    chunk_offset_buffer: Buffer,
-    chunk_offset_bindgroup: BindGroup,
     // Palette
     palette: Palette,
     // Depth texture
@@ -75,45 +72,6 @@ impl<'a> Renderer<'a> {
                     label: Some("vengine::chunk_offset_bind_group"),
                 });
 
-        // Chunk offset
-        let chunk_offset_buffer =
-            backend
-                .device()
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("vengine::chunk_offset_buffer"),
-                    contents: bytemuck::cast_slice(&[0f32; 3]),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                });
-
-        let chunk_offset_bindgroup_layout =
-            backend
-                .device()
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                    label: Some("vengine::chunk_offset_bind_group_layout"),
-                });
-
-        let chunk_offset_bindgroup =
-            backend
-                .device()
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &chunk_offset_bindgroup_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: chunk_offset_buffer.as_entire_binding(),
-                    }],
-                    label: Some("vengine::chunk_offset_bind_group"),
-                });
-
         // Camera related
         let camera = Camera::new(
             Point3::new(0.0, 5.0, 2.0),
@@ -152,17 +110,15 @@ impl<'a> Renderer<'a> {
             &palette,
             *backend.surface_format(),
             &object_transform_bindgroup_layout,
-            &chunk_offset_bindgroup_layout,
         );
 
         Self {
             backend,
             size: AtomicCell::new(size),
             camera,
-            chunk_offset_bindgroup,
-            chunk_offset_buffer,
             object_transform_bindgroup,
             object_transform_buffer,
+
             palette,
             depth_texture: Mutex::new(depth_texture),
             quad,
@@ -172,10 +128,28 @@ impl<'a> Renderer<'a> {
 
     pub fn render(&self, object: &Object) -> Result<(), wgpu::SurfaceError> {
         let output = self.backend().surface().get_current_texture()?;
-
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Object transform update
+        let mut copy_encoder =
+            self.backend()
+                .device()
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("vengine::copy_encoder"),
+                });
+
+        // Object transform
+        copy_encoder.copy_buffer_to_buffer(
+            object.transform_buffer(),
+            0,
+            &self.object_transform_buffer,
+            0,
+            size_of::<[f32; 4 * 4]>() as u64,
+        );
+
+        self.backend().queue().submit(Some(copy_encoder.finish()));
 
         let mut encoder =
             self.backend()
@@ -186,73 +160,59 @@ impl<'a> Renderer<'a> {
 
         let lock = self.depth_texture.lock().unwrap();
 
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
-                        a: 1.0,
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &lock.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
                     }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &lock.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
+                    stencil_ops: None,
                 }),
-                stencil_ops: None,
-            }),
-            occlusion_query_set: None,
-            timestamp_writes: None,
-        });
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
 
-        render_pass.set_pipeline(&self.voxel_pipeline);
-        // Camera
-        render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
-        // Object transform
-        render_pass.set_bind_group(1, &self.object_transform_bindgroup, &[]);
-        // Chunk offset
-        render_pass.set_bind_group(2, &self.chunk_offset_bindgroup, &[]);
-        // Palette
-        render_pass.set_bind_group(3, self.palette.bind_group(), &[]);
+            render_pass.set_pipeline(&self.voxel_pipeline);
+            render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
+            render_pass.set_bind_group(1, &self.object_transform_bindgroup, &[]);
+            render_pass.set_bind_group(2, self.palette.bind_group(), &[]);
 
-        let mut copy_encoder =
-            self.backend()
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("vengine::copy_encoder"),
-                });
+            // Quad buffer (bleibt für alle Chunks gleich)
+            render_pass.set_vertex_buffer(0, self.quad.slice(..));
 
-        for (_, chunk) in object.chunks() {
-            if let Some(buffer) = chunk.buffer() {
-                copy_encoder.copy_buffer_to_buffer(
-                    buffer,
-                    0,
-                    &self.chunk_offset_buffer,
-                    0,
-                    size_of::<[f32; 3]>() as u64,
-                );
+            for (pos, chunk) in object.chunks() {
+                if let Some(buffer) = chunk.buffer() {
+                    // Update chunk offset direkt in der Queue
+                    render_pass.set_push_constants(
+                        wgpu::ShaderStages::VERTEX,
+                        0,
+                        bytemuck::cast_slice(&[pos.x, pos.y, pos.z]),
+                    );
 
-                // Quad
-                render_pass.set_vertex_buffer(0, self.quad.slice(..));
+                    // Set instance buffer
+                    render_pass.set_vertex_buffer(1, buffer.slice(size_of::<[i32; 3]>() as u64..));
 
-                // Instances
-                render_pass.set_vertex_buffer(1, buffer.slice(size_of::<[f32; 3]>() as u64..));
-
-                render_pass.draw(0..4, 0..chunk.quads().len() as u32);
+                    // Draw chunk
+                    render_pass.draw(0..4, 0..chunk.quads().len() as u32 - 3);
+                }
             }
-        }
-
-        self.backend().queue().submit(Some(copy_encoder.finish()));
-
-        drop(render_pass);
+        } // render_pass wird hier dropped
 
         self.backend()
             .queue()

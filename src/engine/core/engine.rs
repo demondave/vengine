@@ -36,7 +36,7 @@ impl<'a> Engine<'a> {
         self.renderer.camera()
     }
 
-    pub fn device(&self) -> &Device {
+    pub fn device(&self) -> &Arc<Device> {
         self.renderer.backend().device()
     }
 
