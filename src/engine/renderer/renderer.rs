@@ -1,22 +1,13 @@
 use std::sync::Mutex;
 
-use cgmath::{Matrix, Point3};
+use cgmath::Point3;
 use crossbeam::atomic::AtomicCell;
 use wgpu::{util::DeviceExt, Buffer, RenderPipeline};
 
-use crate::engine::voxel::object::Object;
-
 use super::{
-    backend::Backend, camera::Camera, palette::Palette, pipeline::voxels::voxel_pipeline,
-    texture::Texture,
+    backend::Backend, camera::Camera, palette::Palette, pass::Pass,
+    pipeline::voxels::voxel_pipeline, texture::Texture,
 };
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct PushConstant {
-    transform: [f32; 4 * 4],
-    offset: [i32; 3],
-}
 
 pub struct Renderer<'a> {
     // Backend
@@ -30,7 +21,7 @@ pub struct Renderer<'a> {
     // Palette
     palette: Palette,
     // Depth texture
-    depth_texture: Mutex<Texture>,
+    depth_texture: Mutex<Option<Texture>>,
     // Quad
     quad: Buffer,
 }
@@ -82,29 +73,36 @@ impl<'a> Renderer<'a> {
             camera,
 
             palette,
-            depth_texture: Mutex::new(depth_texture),
+            depth_texture: Mutex::new(Some(depth_texture)),
             quad,
             voxel_pipeline,
         }
     }
 
-    pub fn render(&self, object: &Object) -> Result<(), wgpu::SurfaceError> {
+    pub fn start_render_pass(&self) -> Result<Pass, wgpu::SurfaceError> {
         let output = self.backend().surface().get_current_texture()?;
+
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder =
-            self.backend()
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("vengine::render_encoder"),
-                });
+        let encoder = Box::new(self.backend().device().create_command_encoder(
+            &wgpu::CommandEncoderDescriptor {
+                label: Some("vengine::render_encoder"),
+            },
+        ));
 
-        let lock = self.depth_texture.lock().unwrap();
+        let encoder = Box::into_raw(encoder);
 
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let depth = self
+            .depth_texture
+            .lock()
+            .unwrap()
+            .take()
+            .expect("depth texture was already taken, did you finish the render pass");
+
+        let mut render_pass =
+            unsafe { &mut *encoder }.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -120,7 +118,7 @@ impl<'a> Renderer<'a> {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &lock.view,
+                    view: &depth.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -131,39 +129,20 @@ impl<'a> Renderer<'a> {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&self.voxel_pipeline);
-            render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
-            render_pass.set_bind_group(1, self.palette.bind_group(), &[]);
+        render_pass.set_pipeline(&self.voxel_pipeline);
+        render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
+        render_pass.set_bind_group(1, self.palette.bind_group(), &[]);
 
-            // Quad buffer (bleibt für alle Chunks gleich)
-            render_pass.set_vertex_buffer(0, self.quad.slice(..));
+        // Quad buffer (bleibt für alle Chunks gleich)
+        render_pass.set_vertex_buffer(0, self.quad.slice(..));
 
-            let mut pc = PushConstant {
-                transform: [0f32; 4 * 4],
-                offset: [0i32; 3],
-            };
+        Ok(Pass::new(render_pass, encoder, depth, output))
+    }
 
-            let tmp = unsafe { std::slice::from_raw_parts(object.transform().as_ptr(), 4 * 4) };
+    pub fn finish_render_pass(&self, pass: Pass) {
+        let (encoder, pass, depth, output) = pass.into_inner();
 
-            pc.transform[..].copy_from_slice(tmp);
-
-            for (offset, chunk) in object.chunks() {
-                if let Some(buffer) = chunk.buffer() {
-                    pc.offset = [offset.x, offset.y, offset.z];
-                    render_pass.set_push_constants(
-                        wgpu::ShaderStages::VERTEX,
-                        0,
-                        bytemuck::cast_slice(&[pc]),
-                    );
-
-                    // Set instance buffer
-                    render_pass.set_vertex_buffer(1, buffer.slice(..));
-
-                    // Draw chunk
-                    render_pass.draw(0..4, 0..chunk.quads().len() as u32);
-                }
-            }
-        } // render_pass wird hier dropped
+        drop(pass);
 
         self.backend()
             .queue()
@@ -171,7 +150,8 @@ impl<'a> Renderer<'a> {
 
         output.present();
 
-        Ok(())
+        let mut lock = self.depth_texture.lock().unwrap();
+        *lock = Some(depth);
     }
 
     pub fn backend(&self) -> &Backend {
@@ -200,11 +180,11 @@ impl<'a> Renderer<'a> {
 
             let mut texture_lock = self.depth_texture.lock().unwrap();
 
-            *texture_lock = Texture::create_depth_texture(
+            *texture_lock = Some(Texture::create_depth_texture(
                 self.backend().device(),
                 &surface_lock,
                 "engine::depth_texture",
-            );
+            ));
         }
     }
 }

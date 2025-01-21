@@ -115,7 +115,13 @@ fn setup(engine: &'static Engine) {
     // Render object
     while !engine.exited() {
         let start = Instant::now();
-        engine.renderer().render(&object).unwrap();
+
+        let mut pass = engine.renderer().start_render_pass().unwrap();
+
+        pass.render_object(&object);
+
+        engine.renderer().finish_render_pass(pass);
+
         let end = Instant::now();
 
         println!(
