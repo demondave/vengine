@@ -147,9 +147,9 @@ impl<'a> Renderer<'a> {
 
             pc.transform[..].copy_from_slice(tmp);
 
-            for (_, chunk) in object.chunks() {
+            for (offset, chunk) in object.chunks() {
                 if let Some(buffer) = chunk.buffer() {
-                    // Update chunk offset direkt in der Queue
+                    pc.offset = [offset.x, offset.y, offset.z];
                     render_pass.set_push_constants(
                         wgpu::ShaderStages::VERTEX,
                         0,

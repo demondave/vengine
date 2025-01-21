@@ -6,20 +6,20 @@ use std::{
 };
 
 use crate::engine::core::engine::Engine;
-use cgmath::{InnerSpace, Vector2, Vector3, Zero};
+use cgmath::{Deg, InnerSpace, Matrix3, Vector3, Zero};
 use winit::{
-    event::{Event, WindowEvent},
+    event::{DeviceEvent, Event, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
 
 const MOVEMENT_SPEED: f32 = 0.05;
-const X_SENSITIVITY: f32 = -0.00075;
-const Y_SENSITIVITY: f32 = 0.00075;
+const MOVEMENT_CONTROL_MULTIPLIER: f32 = 4.0;
+const X_SENSITIVITY: f32 = -0.01;
+const Y_SENSITIVITY: f32 = -0.01;
 const TICKS: f64 = 64.0;
 
 pub struct EventHandler {
     engine: &'static Engine<'static>,
-    cursor_position: Vector2<f32>,
     keymap: HashMap<KeyCode, bool>,
 }
 
@@ -32,11 +32,11 @@ impl EventHandler {
             KeyCode::KeyD,
             KeyCode::Space,
             KeyCode::ShiftLeft,
+            KeyCode::ControlLeft,
         ];
 
         Self {
             engine,
-            cursor_position: Vector2::new(f32::NAN, f32::NAN),
             keymap: HashMap::from_iter(keys.iter().map(|k| (*k, false))),
         }
     }
@@ -56,37 +56,51 @@ impl EventHandler {
             }
 
             while let Ok(event) = events.try_recv() {
-                if let Event::WindowEvent { window_id, event } = event {
-                    if window_id == id {
-                        self.handle_window_event(event);
+                match event {
+                    Event::WindowEvent { window_id, event } => {
+                        if window_id == id {
+                            self.handle_window_event(event);
+                        }
                     }
+                    Event::DeviceEvent {
+                        device_id: _,
+                        event,
+                    } => {
+                        self.handle_device_event(event);
+                    }
+                    _ => {}
                 }
             }
 
             let mut offset: Vector3<f32> = Vector3::zero();
 
+            let multiplier = match self.keymap.get(&KeyCode::ControlLeft).unwrap() {
+                true => MOVEMENT_CONTROL_MULTIPLIER,
+                false => 1.0,
+            };
+
             if *self.keymap.get(&KeyCode::KeyW).unwrap() {
-                offset.z += 1.0;
+                offset.z += 1.0 * multiplier;
             }
 
             if *self.keymap.get(&KeyCode::KeyS).unwrap() {
-                offset.z -= 1.0;
+                offset.z -= 1.0 * multiplier;
             }
 
             if *self.keymap.get(&KeyCode::KeyA).unwrap() {
-                offset.x -= 1.0;
+                offset.x -= 1.0 * multiplier;
             }
 
             if *self.keymap.get(&KeyCode::KeyD).unwrap() {
-                offset.x += 1.0;
+                offset.x += 1.0 * multiplier;
             }
 
             if *self.keymap.get(&KeyCode::Space).unwrap() {
-                offset.y += 1.0;
+                offset.y += 1.0 * multiplier;
             }
 
             if *self.keymap.get(&KeyCode::ShiftLeft).unwrap() {
-                offset.y -= 1.0;
+                offset.y -= 1.0 * multiplier;
             }
 
             let eye = self.engine.camera().get_eye();
@@ -117,31 +131,43 @@ impl EventHandler {
         }
     }
 
+    pub fn handle_device_event(&mut self, event: DeviceEvent) {
+        if let DeviceEvent::MouseMotion {
+            delta: (delta_x, delta_y),
+        } = event
+        {
+            let eye = self.engine.camera().get_eye();
+            let look_at = self.engine.camera().get_look_at();
+
+            let mut relative = look_at - eye;
+
+            let rotation = Matrix3::from_angle_y(Deg(delta_x as f32 * X_SENSITIVITY));
+
+            relative = rotation * relative;
+
+            self.engine.camera().set_look_at_no_update(eye + relative);
+
+            let eye = self.engine.camera().get_eye();
+            let look_at = self.engine.camera().get_look_at();
+
+            let mut relative = (look_at - eye).normalize();
+
+            let right = relative.cross(Vector3::unit_y()).normalize();
+
+            let rotation = Matrix3::from_axis_angle(right, Deg(delta_y as f32 * Y_SENSITIVITY));
+
+            relative = rotation * relative;
+
+            self.engine.camera().set_look_at_no_update(eye + relative);
+
+            self.engine.camera().update();
+        };
+    }
+
     pub fn handle_window_event(&mut self, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
                 self.engine.exit();
-            }
-            WindowEvent::CursorMoved {
-                device_id: _,
-                position,
-            } => {
-                let new = Vector2::new(position.x as f32, position.y as f32);
-
-                if self.cursor_position.x.is_nan() || self.cursor_position.y.is_nan() {
-                    self.cursor_position = new;
-                }
-
-                let diff = self.cursor_position - new;
-
-                self.engine.camera().add_yaw(diff.x * X_SENSITIVITY);
-
-                self.engine.camera().add_pitch(diff.y * Y_SENSITIVITY);
-
-                self.engine.camera().update_target();
-                self.engine.camera().update();
-
-                self.cursor_position = new;
             }
             WindowEvent::KeyboardInput {
                 device_id: _,

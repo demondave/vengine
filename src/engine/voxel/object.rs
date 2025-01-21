@@ -76,6 +76,10 @@ impl ChunkEx {
     pub fn buffer(&self) -> &Option<Buffer> {
         &self.buffer
     }
+
+    pub fn chunk(&self) -> &Chunk {
+        &self.chunk
+    }
 }
 
 pub struct Object {
@@ -117,13 +121,27 @@ impl Object {
 
         let voxels = voxelizer.finalize();
 
+        let mut min_x = i32::MAX;
+        let mut min_y = i32::MAX;
+        let mut min_z = i32::MAX;
+
+        for key in voxels.keys() {
+            min_x = min_x.min(key[0]);
+            min_y = min_y.min(key[1]);
+            min_z = min_z.min(key[2]);
+        }
+
+        min_x = min_x.abs();
+        min_y = min_y.abs();
+        min_z = min_z.abs();
+
         let mut chunks: HashMap<Vector3<i32>, ChunkEx> = HashMap::new();
 
         for (voxel, _) in voxels {
             let pos = Vector3::new(
-                voxel[0] / CHUNK_SIZE as i32,
-                voxel[1] / CHUNK_SIZE as i32,
-                voxel[2] / CHUNK_SIZE as i32,
+                (voxel[0] + min_x) / CHUNK_SIZE as i32,
+                (voxel[1] + min_y) / CHUNK_SIZE as i32,
+                (voxel[2] + min_z) / CHUNK_SIZE as i32,
             );
 
             let chunk = match chunks.get_mut(&pos) {
@@ -143,9 +161,9 @@ impl Object {
             };
 
             // Berechne lokale Koordinaten im Chunk
-            let local_x = voxel[0] - (pos.x * CHUNK_SIZE as i32);
-            let local_y = voxel[1] - (pos.y * CHUNK_SIZE as i32);
-            let local_z = voxel[2] - (pos.z * CHUNK_SIZE as i32);
+            let local_x = (voxel[0] + min_x) % CHUNK_SIZE as i32;
+            let local_y = (voxel[1] + min_y) % CHUNK_SIZE as i32;
+            let local_z = (voxel[2] + min_z) % CHUNK_SIZE as i32;
 
             chunk
                 .chunk

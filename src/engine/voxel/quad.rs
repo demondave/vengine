@@ -44,6 +44,13 @@ impl Quad {
     pub fn texture_id(&self) -> u32 {
         (self.0 & 0b00001111111000000000000000000000) >> 21
     }
+
+    pub fn set_texture_id(&mut self, id: u8) {
+        // Erst die alten Bits löschen
+        self.0 &= !(0b01111111 << 21);
+        // Dann die neuen Bits setzen
+        self.0 |= ((0b01111111 & id) as u32) << 21;
+    }
 }
 
 impl Debug for Quad {

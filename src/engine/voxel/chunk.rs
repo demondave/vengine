@@ -130,6 +130,18 @@ impl Chunk {
                 }
             }
         }
+
+        for quad in out.iter_mut() {
+            match quad.direction() {
+                Direction::Down => quad.set_texture_id(0),
+                Direction::Up => quad.set_texture_id(24),
+                Direction::Left => quad.set_texture_id(48),
+                Direction::Right => quad.set_texture_id(72),
+                Direction::Front => quad.set_texture_id(96),
+                Direction::Back => quad.set_texture_id(120),
+            }
+            //quad.set_texture_id((idx % 128) as u8);
+        }
     }
 
     fn slice(&self, axis: Axis, n: usize, buffer: &mut [u32; 32]) {
@@ -156,6 +168,16 @@ impl Chunk {
                 }
             }
         }
+    }
+
+    pub fn count(&self) -> usize {
+        let mut count = 0;
+
+        for n in self.voxels.as_slice() {
+            count += n.count_ones() as usize;
+        }
+
+        count
     }
 }
 

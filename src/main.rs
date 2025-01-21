@@ -1,12 +1,12 @@
 use cgmath::{Matrix4, Point3, SquareMatrix};
-use colorgrad::preset::turbo;
+use colorgrad::preset::plasma;
 use engine::{
     core::{engine::Engine, window::Window},
     renderer::backend::Backend,
     voxel::object::{Object, Properties},
 };
 use input::EventHandler;
-use obj::{load_obj, Obj};
+use obj::{load_obj, Obj, Vertex};
 use std::{
     fs::File,
     io::BufReader,
@@ -58,7 +58,7 @@ fn setup(engine: &'static Engine) {
     engine
         .renderer()
         .palette()
-        .set_palette(gradient_to_palette(&turbo()));
+        .set_palette(gradient_to_palette(&plasma()));
 
     // Setup camera
     engine.camera().set_eye(Point3::new(-3.0, 0.5, -3f32));
@@ -73,9 +73,9 @@ fn setup(engine: &'static Engine) {
 
     // https://groups.csail.mit.edu/graphics/classes/6.837/F03/models/
     let input = BufReader::new(File::open("teapot.obj").unwrap());
-    let obj: Obj = load_obj(input).unwrap();
+    let obj: Obj<Vertex, u32> = load_obj(input).unwrap();
 
-    let scale = 6.0;
+    let scale = 32.0;
 
     fn scale_vec(vector: [f32; 3], scale: f32) -> [f32; 3] {
         [vector[0] * scale, vector[1] * scale, vector[2] * scale]
@@ -102,23 +102,15 @@ fn setup(engine: &'static Engine) {
         &triangles,
     );
 
-    println!("Voxelized");
+    let mut count = 0;
 
-    /*
-    let mut object = Object::new(engine.device().clone(), Matrix4::identity(), properties);
-
-    let mut chunk = Chunk::empty();
-    for n in 0..31 {
-        chunk.set(0, n, 0, true);
+    for (_, value) in object.chunks() {
+        count += value.chunk().count();
     }
 
-    object.add_chunk(Vector3::new(0, 0, 0), chunk, true);
+    println!("{} Voxels", count);
 
-    let mut chunk = Chunk::empty();
-    chunk.set(0, 0, 0, true);
-
-    object.add_chunk(Vector3::new(0, 1, 0), chunk, true);
-    */
+    println!("Voxelized");
 
     // Render object
     while !engine.exited() {

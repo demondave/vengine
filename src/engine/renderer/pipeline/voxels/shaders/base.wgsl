@@ -43,7 +43,7 @@ fn vs_main(
     var position_y: u32 = (instance.instance >> 6) & 63;
     var position_z: u32 = (instance.instance >> 12) & 63;
     var direction: u32 = (instance.instance >> 18) & 7;
-    var texture_id: u32 = (instance.instance >> 21) & 63;
+    var texture_id: u32 = (instance.instance >> 21) & 127;
 
     var position: vec3<f32> = model.position;
 
