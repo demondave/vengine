@@ -13,7 +13,7 @@ pub struct Backend<'a> {
     format: TextureFormat,
 }
 
-impl<'a> Backend<'a> {
+impl Backend<'_> {
     pub async fn new(window: &Window) -> Self {
         let instance = Instance::new(InstanceDescriptor {
             backends: Backends::PRIMARY,
