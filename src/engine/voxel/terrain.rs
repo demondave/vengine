@@ -72,15 +72,27 @@ impl Terrain {
 }
 
 fn heightmap(x: i32, z: i32) -> usize {
-    const SCALE: f64 = 0.1; // Controls terrain smoothness
-    const HEIGHT_MULTIPLIER: f64 = 10.0; // Adjusts max height variation
-    const SEED: u32 = 69;
+    let seed = 69;
+    let perlin = Perlin::new(seed);
+    const SCALE: f64 = 0.01;
+    const HEIGHT_MULTIPLIER: f64 = 8.0;
+    const OCTAVES: u32 = 4;
+    const PERSISTENCE: f64 = 0.5;
 
-    let perlin = Perlin::new(SEED);
+    let mut amplitude = 1.0;
+    let mut frequency = 1.0;
+    let mut height = 0.0;
 
-    let noise_value = perlin.get([x as f64 * SCALE, z as f64 * SCALE]);
+    // Sum multiple octaves of noise
+    for _ in 0..OCTAVES {
+        height +=
+            perlin.get([x as f64 * SCALE * frequency, z as f64 * SCALE * frequency]) * amplitude;
 
-    let height = (noise_value * HEIGHT_MULTIPLIER + (CHUNK_SIZE / 2) as f64) as i64;
+        amplitude *= PERSISTENCE;
+        frequency *= 2.0;
+    }
 
-    height.clamp(0, CHUNK_SIZE as i64) as usize
+    // Normalize and scale
+    let height = (height + 1.0) * HEIGHT_MULTIPLIER;
+    height.clamp(0f64, CHUNK_SIZE as f64 - 1.0) as usize
 }
