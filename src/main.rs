@@ -1,4 +1,4 @@
-use cgmath::{Point3};
+use cgmath::Point3;
 use colorgrad::preset::plasma;
 use engine::{
     core::{engine::Engine, window::Window},

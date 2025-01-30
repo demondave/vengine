@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use ahash::{HashMap, HashMapExt};
 use cgmath::{Matrix4, SquareMatrix, Vector3};
+use noise::{NoiseFn, Perlin};
 use wgpu::Device;
 
 use crate::engine::{core::engine::Engine, renderer::pass::Pass};
@@ -71,6 +72,15 @@ impl Terrain {
 }
 
 fn heightmap(x: i32, z: i32) -> usize {
-    (((x as f32 * 0.1).sin() * 10.0 + (z as f32 * 0.333).cos() * 15.0) as i64)
-        .clamp(0, CHUNK_SIZE as i64) as usize
+    const SCALE: f64 = 0.1; // Controls terrain smoothness
+    const HEIGHT_MULTIPLIER: f64 = 10.0; // Adjusts max height variation
+    const SEED: u32 = 69;
+
+    let perlin = Perlin::new(SEED);
+
+    let noise_value = perlin.get([x as f64 * SCALE, z as f64 * SCALE]);
+
+    let height = (noise_value * HEIGHT_MULTIPLIER + (CHUNK_SIZE / 2) as f64) as i64;
+
+    height.clamp(0, CHUNK_SIZE as i64) as usize
 }
