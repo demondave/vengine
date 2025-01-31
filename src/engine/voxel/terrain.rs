@@ -16,7 +16,8 @@ pub struct Terrain {
     distance: i32,
     chunks: HashMap<Vector3<i32>, ChunkEx>,
     device: Arc<Device>,
-    height_cache: HashMap<(i32, i32), usize>, // Cache heightmap results
+    height_cache: HashMap<(i32, i32), usize>,
+    height_bounds_cache: HashMap<(i32, i32), (i32, i32)>, // Add this
 }
 
 impl Terrain {
@@ -26,6 +27,7 @@ impl Terrain {
             chunks: HashMap::with_capacity((distance * 2 * distance * 2) as usize),
             device,
             height_cache: HashMap::new(),
+            height_bounds_cache: HashMap::with_capacity((distance * 2 * distance * 2) as usize),
         }
     }
 
@@ -44,18 +46,27 @@ impl Terrain {
         let min_z = chunk_z * CHUNK_SIZE as i32;
         let min_y = chunk_y * CHUNK_SIZE as i32;
 
-        // Quick height check to see if we need this chunk at all
-        let corner_heights = [
-            self.get_cached_height(min_x, min_z),
-            self.get_cached_height(min_x + CHUNK_SIZE as i32 - 1, min_z),
-            self.get_cached_height(min_x, min_z + CHUNK_SIZE as i32 - 1),
-            self.get_cached_height(min_x + CHUNK_SIZE as i32 - 1, min_z + CHUNK_SIZE as i32 - 1),
-        ];
+        let bounds_key = (chunk_x, chunk_z);
+        let (min_height, max_height) =
+            if let Some(&bounds) = self.height_bounds_cache.get(&bounds_key) {
+                bounds
+            } else {
+                let mut min_height = i32::MAX;
+                let mut max_height = i32::MIN;
 
-        let min_height = *corner_heights.iter().min().unwrap() as i32;
-        let max_height = *corner_heights.iter().max().unwrap() as i32;
+                for dx in (0..CHUNK_SIZE as i32).step_by(4) {
+                    for dz in (0..CHUNK_SIZE as i32).step_by(4) {
+                        let h = self.get_cached_height(min_x + dx, min_z + dz) as i32;
+                        min_height = min_height.min(h);
+                        max_height = max_height.max(h);
+                    }
+                }
 
-        // Skip chunk if it's completely above or below the terrain
+                self.height_bounds_cache
+                    .insert(bounds_key, (min_height, max_height));
+                (min_height, max_height)
+            };
+
         if max_height < min_y || min_height >= min_y + CHUNK_SIZE as i32 {
             return None;
         }
