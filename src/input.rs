@@ -12,7 +12,7 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
 };
 
-const MOVEMENT_SPEED: f32 = 0.05;
+const MOVEMENT_SPEED: f32 = 0.95;
 const MOVEMENT_CONTROL_MULTIPLIER: f32 = 4.0;
 const X_SENSITIVITY: f32 = -0.01;
 const Y_SENSITIVITY: f32 = -0.01;

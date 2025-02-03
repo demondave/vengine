@@ -1,15 +1,16 @@
-use cgmath::{Matrix4, Point3, SquareMatrix};
+use cgmath::Point3;
 use colorgrad::preset::plasma;
 use engine::{
     core::{engine::Engine, window::Window},
     renderer::backend::Backend,
-    voxel::object::{Object, Properties},
+    voxel::{
+        chunk::{Chunk, CHUNK_SIZE},
+        object::ChunkEx,
+        terrain::Terrain,
+    },
 };
 use input::EventHandler;
-use obj::{load_obj, Obj, Vertex};
 use std::{
-    fs::File,
-    io::BufReader,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -66,51 +67,19 @@ fn setup(engine: &'static Engine) {
         .camera()
         .set_look_at(Point3::new(0.5f32, 0.5f32, -0.5f32));
 
-    // Create a static and axis aligned voxel object
-    let mut properties = Properties::default();
-    properties.set_is_static(true);
-    properties.set_is_axis_aligned(true);
+    let mut chunk = Chunk::empty();
 
-    // https://groups.csail.mit.edu/graphics/classes/6.837/F03/models/
-    let input = BufReader::new(File::open("teapot.obj").unwrap());
-    let obj: Obj<Vertex, u32> = load_obj(input).unwrap();
-
-    let scale = 32.0;
-
-    fn scale_vec(vector: [f32; 3], scale: f32) -> [f32; 3] {
-        [vector[0] * scale, vector[1] * scale, vector[2] * scale]
+    for y in 0..CHUNK_SIZE {
+        for x in 0..CHUNK_SIZE {
+            chunk.set(x, 0, y, true);
+        }
     }
 
-    let triangles = obj
-        .indices
-        .chunks(3)
-        .map(|c| {
-            [
-                scale_vec(obj.vertices[c[0] as usize].position, scale),
-                scale_vec(obj.vertices[c[1] as usize].position, scale),
-                scale_vec(obj.vertices[c[2] as usize].position, scale),
-            ]
-        })
-        .collect::<Vec<[[f32; 3]; 3]>>();
+    let mut chunk = ChunkEx::new(chunk);
+    chunk.remesh();
+    chunk.allocate(engine.device());
 
-    println!("Loaded");
-
-    let object = Object::voxelize_from_mesh(
-        engine.device().clone(),
-        Matrix4::identity(),
-        properties,
-        &triangles,
-    );
-
-    let mut count = 0;
-
-    for (_, value) in object.chunks() {
-        count += value.chunk().count();
-    }
-
-    println!("{} Voxels", count);
-
-    println!("Voxelized");
+    let mut terrain = Terrain::new(12, engine.device().clone());
 
     // Render object
     while !engine.exited() {
@@ -118,7 +87,7 @@ fn setup(engine: &'static Engine) {
 
         let mut pass = engine.renderer().start_render_pass().unwrap();
 
-        pass.render_object(&object);
+        terrain.render(engine, &mut pass);
 
         engine.renderer().finish_render_pass(pass);
 

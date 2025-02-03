@@ -1,7 +1,7 @@
-use cgmath::Matrix;
+use cgmath::{Array, Matrix, Matrix4, Vector3};
 use wgpu::{CommandEncoder, RenderPass, SurfaceTexture};
 
-use crate::engine::voxel::object::Object;
+use crate::engine::voxel::object::{ChunkEx, Object};
 
 use super::texture::Texture;
 
@@ -59,6 +59,33 @@ impl<'a> Pass<'a> {
                 // Draw chunk
                 self.pass.draw(0..4, 0..chunk.quads().len() as u32);
             }
+        }
+    }
+
+    pub fn render_chunk(&mut self, transform: Matrix4<f32>, offset: Vector3<i32>, chunk: &ChunkEx) {
+        let mut pc = PushConstant {
+            transform: [0f32; 4 * 4],
+            offset: [0i32; 3],
+        };
+
+        let tmp = unsafe { std::slice::from_raw_parts(transform.as_ptr(), 4 * 4) };
+        pc.transform[..].copy_from_slice(tmp);
+
+        let tmp = unsafe { std::slice::from_raw_parts(offset.as_ptr(), 3) };
+        pc.offset[..].copy_from_slice(tmp);
+
+        if let Some(buffer) = chunk.buffer() {
+            self.pass.set_push_constants(
+                wgpu::ShaderStages::VERTEX,
+                0,
+                bytemuck::cast_slice(&[pc]),
+            );
+
+            // Set instance buffer
+            self.pass.set_vertex_buffer(1, buffer.slice(..));
+
+            // Draw chunk
+            self.pass.draw(0..4, 0..chunk.quads().len() as u32);
         }
     }
 

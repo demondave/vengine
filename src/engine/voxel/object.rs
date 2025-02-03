@@ -49,6 +49,18 @@ pub struct ChunkEx {
 }
 
 impl ChunkEx {
+    pub fn new(chunk: Chunk) -> Self {
+        Self {
+            chunk,
+            quads: Vec::new(),
+            buffer: None,
+        }
+    }
+
+    pub fn remesh(&mut self) {
+        self.chunk.remesh(&mut self.quads);
+    }
+
     pub fn quads(&self) -> &[Quad] {
         &self.quads
     }
