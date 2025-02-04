@@ -71,7 +71,7 @@ impl Stats {
                 low_0_1
             )
         }
-        println!("");
+        println!();
     }
 }
 
