@@ -82,9 +82,42 @@ fn vs_main(
 
     out.color = palette[texture_id];
 
+    // Apply "shading"
+    switch direction {
+        // Up
+        case 0u: {
+            out.color = darken_color(out.color, 0.15);
+        }
+        // Down
+        case 1u: {
+            out.color = darken_color(out.color, 0.4);
+        }
+        // Left
+        case 2u: {
+            out.color = darken_color(out.color, 0.3);
+        }
+        // Right
+        case 3u: {
+            out.color = darken_color(out.color, 0.325);
+        }
+        // Front
+        case 4u: {
+            out.color = darken_color(out.color, 0.35);
+        }
+        // Back
+        case 5u: {
+            out.color = darken_color(out.color, 0.375);
+        }
+        default: {}
+    }
+
     out.clip_position = camera.view_proj * vec4<f32>(position, 1.0);
 
     return out;
+}
+
+fn darken_color(color: vec4<f32>, factor: f32) -> vec4<f32> {
+    return vec4<f32>(color.rgb * (1.0 - factor), color.a);
 }
 
 // Fragment shader
