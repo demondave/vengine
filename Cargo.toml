@@ -18,10 +18,6 @@ dda-voxelize = { git = "https://github.com/MIERUNE/dda-voxelize-rs" }
 obj-rs = "0.7.4"
 noise = "0.9.0"
 
-[target.x86_64-unknown-linux-gnu]
-linker = "/usr/bin/clang-15"
-rustflags = ["-C", "link-arg=--ld-path=/usr/local/bin/mold"]
-
 [profile.dev]
 debug = 0
 strip = "debuginfo"
