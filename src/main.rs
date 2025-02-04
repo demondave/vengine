@@ -1,5 +1,5 @@
 use cgmath::Point3;
-use colorgrad::preset::plasma;
+use colorgrad::preset::{plasma, turbo};
 use engine::{
     core::{engine::Engine, window::Window},
     renderer::backend::Backend,
@@ -59,7 +59,7 @@ fn setup(engine: &'static Engine) {
     engine
         .renderer()
         .palette()
-        .set_palette(gradient_to_palette(&plasma()));
+        .set_palette(gradient_to_palette(&turbo()));
 
     // Setup camera
     engine.camera().set_eye(Point3::new(-3.0, 0.5, -3f32));
@@ -71,7 +71,7 @@ fn setup(engine: &'static Engine) {
 
     for y in 0..CHUNK_SIZE {
         for x in 0..CHUNK_SIZE {
-            chunk.set(x, 0, y, true);
+            chunk.set(x, 0, y, true, 0);
         }
     }
 

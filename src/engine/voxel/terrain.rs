@@ -83,12 +83,12 @@ impl Terrain {
                     has_blocks = true;
                     let local_height = (absolute_height - min_y) as usize;
                     for y in 0..=local_height {
-                        chunk.set(x, y, z, true);
+                        chunk.set(x, y, z, true, ((2 * absolute_height) % 128) as u8);
                     }
                 } else if absolute_height >= min_y + CHUNK_SIZE as i32 {
                     has_blocks = true;
                     for y in 0..CHUNK_SIZE {
-                        chunk.set(x, y, z, true);
+                        chunk.set(x, y, z, true, ((2 * absolute_height) % 128) as u8);
                     }
                 }
             }

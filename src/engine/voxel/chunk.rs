@@ -1,3 +1,5 @@
+use ahash::HashMap;
+
 use super::quad::Quad;
 
 pub const CHUNK_SIZE: usize = 32;
@@ -23,21 +25,26 @@ pub enum Axis {
 // The chunk coordinates are left handed
 pub struct Chunk {
     voxels: Box<[u32; 32 * 32]>,
+    colors: HashMap<u16, u8>,
 }
 
 impl Chunk {
     pub fn empty() -> Chunk {
         Chunk {
             voxels: Box::new([0u32; 32 * 32]),
+            colors: HashMap::default(),
         }
     }
 
     /// Sets voxel state inside a chunk
     /// The voxel coordinate system is left handed
-    pub fn set(&mut self, x: usize, y: usize, z: usize, state: bool) {
+    pub fn set(&mut self, x: usize, y: usize, z: usize, state: bool, color: u8) {
         assert!(x < CHUNK_SIZE);
         assert!(y < CHUNK_SIZE);
         assert!(z < CHUNK_SIZE);
+
+        self.colors
+            .insert(((z * 32 * 32) + ((31 - y) * 32) + x) as u16, color);
 
         if state {
             self.voxels[(z * 32) + (31 - y)] |= 2147483648 >> x;
@@ -48,12 +55,22 @@ impl Chunk {
 
     /// Gets a voxel state inside a chunk
     /// The voxel coordinate system is left handed
-    pub fn get(&self, x: usize, y: usize, z: usize) -> bool {
+    pub fn get_occupied(&self, x: usize, y: usize, z: usize) -> bool {
         assert!(x < CHUNK_SIZE);
         assert!(y < CHUNK_SIZE);
         assert!(z < CHUNK_SIZE);
 
         self.voxels[(z * 32) + (31 - y)] & (2147483648 >> x) != 0
+    }
+
+    pub fn get_color(&self, x: usize, y: usize, z: usize) -> Option<u8> {
+        assert!(x < CHUNK_SIZE);
+        assert!(y < CHUNK_SIZE);
+        assert!(z < CHUNK_SIZE);
+
+        self.colors
+            .get(&(((z * 32 * 32) + ((31 - y) * 32) + x) as u16))
+            .copied()
     }
 
     pub fn remesh(&mut self, out: &mut Vec<Quad>) {
@@ -74,10 +91,22 @@ impl Chunk {
                     let left = &buffer[n + 1];
 
                     if left[a] & (2147483648 >> b) == 0 && mid[a] & (2147483648 >> b) != 0 {
-                        out.push(Quad::new(Direction::Left, n - 1, 31 - a, b, 69));
+                        out.push(Quad::new(
+                            Direction::Left,
+                            n - 1,
+                            31 - a,
+                            b,
+                            self.get_color(n - 1, 31 - a, b).unwrap() as usize,
+                        ));
                     }
                     if mid[a] & (2147483648 >> b) != 0 && right[a] & (2147483648 >> b) == 0 {
-                        out.push(Quad::new(Direction::Right, n - 1, 31 - a, b, 69));
+                        out.push(Quad::new(
+                            Direction::Right,
+                            n - 1,
+                            31 - a,
+                            b,
+                            self.get_color(n - 1, 31 - a, b).unwrap() as usize,
+                        ));
                     }
                 }
             }
@@ -98,10 +127,22 @@ impl Chunk {
                     let down = &buffer[n - 1];
 
                     if up[a] & (2147483648 >> b) == 0 && mid[a] & (2147483648 >> b) != 0 {
-                        out.push(Quad::new(Direction::Up, b, n - 1, 31 - a, 69));
+                        out.push(Quad::new(
+                            Direction::Up,
+                            b,
+                            n - 1,
+                            31 - a,
+                            self.get_color(b, n - 1, 31 - a).unwrap() as usize,
+                        ));
                     }
                     if mid[a] & (2147483648 >> b) != 0 && down[a] & (2147483648 >> b) == 0 {
-                        out.push(Quad::new(Direction::Down, b, n - 1, 31 - a, 69));
+                        out.push(Quad::new(
+                            Direction::Down,
+                            b,
+                            n - 1,
+                            31 - a,
+                            self.get_color(b, n - 1, 31 - a).unwrap() as usize,
+                        ));
                     }
                 }
             }
@@ -122,15 +163,28 @@ impl Chunk {
                     let back = &buffer[n + 1];
 
                     if front[a] & (2147483648 >> b) == 0 && mid[a] & (2147483648 >> b) != 0 {
-                        out.push(Quad::new(Direction::Front, b, 31 - a, n - 1, 69));
+                        out.push(Quad::new(
+                            Direction::Front,
+                            b,
+                            31 - a,
+                            n - 1,
+                            self.get_color(b, 31 - a, n - 1).unwrap() as usize,
+                        ));
                     }
                     if mid[a] & (2147483648 >> b) != 0 && back[a] & (2147483648 >> b) == 0 {
-                        out.push(Quad::new(Direction::Back, b, 31 - a, n - 1, 69));
+                        out.push(Quad::new(
+                            Direction::Back,
+                            b,
+                            31 - a,
+                            n - 1,
+                            self.get_color(b, 31 - a, n - 1).unwrap() as usize,
+                        ));
                     }
                 }
             }
         }
 
+        /*
         for quad in out.iter_mut() {
             match quad.direction() {
                 Direction::Down => quad.set_texture_id(0),
@@ -140,8 +194,8 @@ impl Chunk {
                 Direction::Front => quad.set_texture_id(96),
                 Direction::Back => quad.set_texture_id(120),
             }
-            //quad.set_texture_id((idx % 128) as u8);
         }
+        */
     }
 
     fn slice(&self, axis: Axis, n: usize, buffer: &mut [u32; 32]) {
@@ -188,8 +242,8 @@ fn test_set_get() {
             for x in 0..32 {
                 let mut chunk = Chunk::empty();
 
-                chunk.set(x, y, z, true);
-                assert!(chunk.get(x, y, z));
+                chunk.set(x, y, z, true, 0);
+                assert!(chunk.get_occupied(x, y, z));
             }
         }
     }
@@ -209,11 +263,11 @@ fn test_slice() {
 
         for y in 0..32 {
             for z in 0..32 {
-                chunk.set(n, z, y, true);
+                chunk.set(n, z, y, true, 0);
             }
         }
 
-        chunk.set(n, 1, 1, false);
+        chunk.set(n, 1, 1, false, 0);
 
         chunk.slice(Axis::X, n, &mut buffer);
 
@@ -226,11 +280,11 @@ fn test_slice() {
 
         for x in 0..32 {
             for z in 0..32 {
-                chunk.set(x, n, z, true);
+                chunk.set(x, n, z, true, 0);
             }
         }
 
-        chunk.set(1, n, 1, false);
+        chunk.set(1, n, 1, false, 0);
 
         chunk.slice(Axis::Y, n, &mut buffer);
 
@@ -243,11 +297,11 @@ fn test_slice() {
 
         for y in 0..32 {
             for x in 0..32 {
-                chunk.set(x, y, n, true);
+                chunk.set(x, y, n, true, 0);
             }
         }
 
-        chunk.set(1, 1, n, false);
+        chunk.set(1, 1, n, false, 0);
 
         chunk.slice(Axis::Z, n, &mut buffer);
 

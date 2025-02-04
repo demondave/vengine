@@ -177,9 +177,13 @@ impl Object {
             let local_y = (voxel[1] + min_y) % CHUNK_SIZE as i32;
             let local_z = (voxel[2] + min_z) % CHUNK_SIZE as i32;
 
-            chunk
-                .chunk
-                .set(local_x as usize, local_y as usize, local_z as usize, true);
+            chunk.chunk.set(
+                local_x as usize,
+                local_y as usize,
+                local_z as usize,
+                true,
+                0,
+            );
         }
 
         for chunk in chunks.values_mut() {
