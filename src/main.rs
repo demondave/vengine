@@ -10,7 +10,7 @@ use engine::{
     },
 };
 use input::EventHandler;
-use stats::Stats;
+use stats::{Ranking, Stats};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -86,11 +86,17 @@ fn setup(engine: &'static Engine) {
     // Render object
     let mut stats = Stats::default();
 
-    stats.add_metric("fps".to_string(), "FPS".to_string(), "FPS".to_string());
+    stats.add_metric(
+        "fps".to_string(),
+        "FPS".to_string(),
+        "FPS".to_string(),
+        Ranking::Low,
+    );
     stats.add_metric(
         "frame_time".to_string(),
         "Frame time".to_string(),
         "ms".to_string(),
+        Ranking::High,
     );
 
     while !engine.exited() {
