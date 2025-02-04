@@ -10,6 +10,7 @@ use engine::{
     },
 };
 use input::EventHandler;
+use stats::{Ranking, Stats};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -18,6 +19,7 @@ use util::gradient_to_palette;
 
 pub mod engine;
 pub mod input;
+pub mod stats;
 pub mod util;
 
 pub fn main() {
@@ -82,6 +84,21 @@ fn setup(engine: &'static Engine) {
     let mut terrain = Terrain::new(12, engine.device().clone());
 
     // Render object
+    let mut stats = Stats::default();
+
+    stats.add_metric(
+        "fps".to_string(),
+        "FPS".to_string(),
+        "FPS".to_string(),
+        Ranking::Low,
+    );
+    stats.add_metric(
+        "frame_time".to_string(),
+        "Frame time".to_string(),
+        "ms".to_string(),
+        Ranking::High,
+    );
+
     while !engine.exited() {
         let start = Instant::now();
 
@@ -93,10 +110,9 @@ fn setup(engine: &'static Engine) {
 
         let end = Instant::now();
 
-        println!(
-            "{:.3}ms -> {:.0} FPS",
-            (end - start).as_secs_f64() * 1000.0,
-            1.0 / ((end - start).as_secs_f64())
-        );
+        stats.push_metric("fps", 1.0 / ((end - start).as_secs_f64()));
+        stats.push_metric("frame_time", (end - start).as_secs_f64() * 1000.0);
+
+        stats.print();
     }
 }
