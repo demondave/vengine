@@ -116,6 +116,13 @@ fn setup(engine: &'static Engine) {
     let mut stats = Stats::default();
 
     stats.add_metric(
+        "physics".to_string(),
+        "physics".to_string(),
+        "ms".to_string(),
+        Ranking::High,
+    );
+
+    stats.add_metric(
         "fps".to_string(),
         "FPS".to_string(),
         "FPS".to_string(),
@@ -141,6 +148,8 @@ fn setup(engine: &'static Engine) {
             last = Instant::now();
 
             simulation.step();
+
+            stats.push_metric("physics", last.elapsed().as_secs_f64() * 1000.0)
         }
 
         for (cube, handle) in cubes.iter_mut() {
