@@ -1,3 +1,4 @@
+use crate::engine::core::window::WindowBuilder;
 use cgmath::Point3;
 use colorgrad::preset::turbo;
 use engine::{
@@ -11,10 +12,8 @@ use engine::{
 };
 use input::EventHandler;
 use stats::{Ranking, Stats};
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::sync::Arc;
+use std::time::Instant;
 use util::gradient_to_palette;
 
 pub mod engine;
@@ -25,26 +24,25 @@ pub mod util;
 pub fn main() {
     env_logger::init();
 
-    let window = Window::new(1000, 1000);
-
-    let window = Arc::new(window);
-
-    let tmp = window.clone();
+    let (window_fut, run_fn) = WindowBuilder::new()
+        .size(1000, 1000)
+        .cursor_visible(false)
+        .cursor_lock(true)
+        .build();
 
     std::thread::spawn(move || {
-        init(tmp);
+        let window = pollster::block_on(window_fut);
+        init(Arc::new(window));
     });
 
     // We need to spawn a new thread because the event loop needs to be run in the main loop
-    window.start_event_loop();
+    run_fn()
 }
 
 fn init(window: Arc<Window>) {
-    std::thread::sleep(Duration::from_millis(100));
-
     let backend = pollster::block_on(Backend::new(&window));
 
-    let engine: &'static Engine = Box::leak(Box::new(Engine::new(window.clone(), backend)));
+    let engine: &'static Engine = Box::leak(Box::new(Engine::new(window, backend)));
 
     std::thread::spawn(|| {
         let mut event_handler = EventHandler::new(engine);

@@ -9,7 +9,7 @@ use winit::event::Event;
 
 use crate::engine::renderer::{backend::Backend, camera::Camera, renderer::Renderer};
 
-use super::window::Window;
+use super::window::{UserEvent, Window};
 
 pub struct Engine<'a> {
     renderer: Renderer<'a>,
@@ -44,7 +44,7 @@ impl<'a> Engine<'a> {
         &self.window
     }
 
-    pub fn events(&self) -> &Receiver<Event<()>> {
+    pub fn events(&self) -> &Receiver<Event<UserEvent>> {
         self.window().events()
     }
 
