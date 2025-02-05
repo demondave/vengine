@@ -1,4 +1,5 @@
 use crate::engine::physics::simulation::Simulation;
+use crate::engine::voxel::chunk::VOXEL_SIZE;
 use crate::engine::voxel::object::{Object, Properties};
 use crate::engine::voxel::terrain::Terrain;
 use cgmath::{Matrix4, Point3, Quaternion, Vector3};
@@ -82,6 +83,10 @@ fn setup(engine: &'static Engine) {
         positions.push(nalgebra::Vector3::new(x, y, z));
     }
 
+    for y in (0..64).step_by(2)  {
+        positions.push(nalgebra::Vector3::new(44.0, y as f32 + 55.0, 12.0));
+    }
+
     let mut cubes: Vec<(Object, RigidBodyHandle)> = vec![];
 
     for i in positions {
@@ -98,12 +103,17 @@ fn setup(engine: &'static Engine) {
         cube.add_chunk(Vector3::new(0, 0, 0), chunk, true);
 
         let cube_rigid_body = RigidBodyBuilder::dynamic()
-            .translation(nalgebra::Vector3::new(i[0], i[1], i[2]))
+            .translation(nalgebra::Vector3::new(
+                i[0] + VOXEL_SIZE / 2.0,
+                i[1] + VOXEL_SIZE / 2.0,
+                i[2] + VOXEL_SIZE / 2.0,
+            ))
             .build();
 
         let cube_handle = simulation.add_rigid_body(cube_rigid_body);
 
-        let cube_collider = ColliderBuilder::cuboid(1.0, 1.0, 1.0);
+        let cube_collider =
+            ColliderBuilder::cuboid(VOXEL_SIZE / 2.0, VOXEL_SIZE / 2.0, VOXEL_SIZE / 2.0);
 
         simulation.add_collider(cube_collider, Some(cube_handle));
 

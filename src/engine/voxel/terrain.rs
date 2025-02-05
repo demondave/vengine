@@ -3,6 +3,7 @@ use super::{
     object::ChunkEx,
 };
 use crate::engine::physics::simulation::Simulation;
+use crate::engine::voxel::chunk::VOXEL_SIZE;
 use crate::engine::{core::engine::Engine, renderer::pass::Pass};
 use ahash::{HashMap, HashMapExt};
 use cgmath::{Matrix4, SquareMatrix, Vector3};
@@ -127,7 +128,7 @@ impl Terrain {
                                     .translation(nalgebra::Vector3::new(
                                         chunk_pos.x as f32 * CHUNK_SIZE as f32
                                             + CHUNK_SIZE as f32 / 2.0,
-                                        0.0,
+                                        VOXEL_SIZE / 2.0,
                                         chunk_pos.z as f32 * CHUNK_SIZE as f32
                                             + CHUNK_SIZE as f32 / 2.0,
                                     ))
