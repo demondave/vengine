@@ -12,9 +12,12 @@ crossbeam = "0.8.4"
 dda-voxelize = { git = "https://github.com/MIERUNE/dda-voxelize-rs", rev = "1e0844a873262f13b19a709e188a3df22a6fbf97" }
 env_logger = "0.11.6"
 log = "0.4.25"
+nalgebra = "0.33.2"
 noise = "0.9.0"
 obj-rs = "0.7.4"
 pollster = "0.4.0"
+rand = "0.9.0"
+rapier3d = { version = "0.23.0", features = [ "simd-stable" ] }
 wgpu = "24.0.1"
 winit = "0.29.15"
 
