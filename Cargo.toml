@@ -5,22 +5,18 @@ edition = "2021"
 
 [dependencies]
 ahash = { version = "0.8.11", features = ["compile-time-rng"] }
-bytemuck = { version = "1.12", features = ["derive", "extern_crate_alloc"] }
+bytemuck = { version = "1.21.0", features = ["derive", "extern_crate_alloc"] }
 cgmath = "0.18.0"
 colorgrad = "0.7.0"
 crossbeam = "0.8.4"
-env_logger = "0.10"
-log = "0.4"
-pollster = "0.3"
-wgpu = "22.1.0"
-winit = "0.29"
-dda-voxelize = { git = "https://github.com/MIERUNE/dda-voxelize-rs" }
-obj-rs = "0.7.4"
+dda-voxelize = { git = "https://github.com/MIERUNE/dda-voxelize-rs", rev = "1e0844a873262f13b19a709e188a3df22a6fbf97" }
+env_logger = "0.11.6"
+log = "0.4.25"
 noise = "0.9.0"
-
-[target.x86_64-unknown-linux-gnu]
-linker = "/usr/bin/clang-15"
-rustflags = ["-C", "link-arg=--ld-path=/usr/local/bin/mold"]
+obj-rs = "0.7.4"
+pollster = "0.4.0"
+wgpu = "24.0.1"
+winit = "0.29.15"
 
 [profile.dev]
 debug = 0

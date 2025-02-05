@@ -1,5 +1,5 @@
 use cgmath::Point3;
-use colorgrad::preset::{plasma, turbo};
+use colorgrad::preset::turbo;
 use engine::{
     core::{engine::Engine, window::Window},
     renderer::backend::Backend,

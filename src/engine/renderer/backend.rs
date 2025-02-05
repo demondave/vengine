@@ -15,7 +15,7 @@ pub struct Backend<'a> {
 
 impl Backend<'_> {
     pub async fn new(window: &Window) -> Self {
-        let instance = Instance::new(InstanceDescriptor {
+        let instance = Instance::new(&InstanceDescriptor {
             backends: Backends::PRIMARY,
             ..Default::default()
         });
