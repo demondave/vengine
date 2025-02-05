@@ -1,11 +1,12 @@
 use crate::engine::physics::simulation::Simulation;
 use crate::engine::voxel::object::{Object, Properties};
-use cgmath::{Matrix4, Point3, Quaternion, SquareMatrix, Vector3};
+use crate::engine::voxel::terrain::Terrain;
+use cgmath::{Matrix4, Point3, Quaternion, Vector3};
 use colorgrad::preset::turbo;
 use engine::{
     core::{engine::Engine, window::Window},
     renderer::backend::Backend,
-    voxel::chunk::{Chunk, CHUNK_SIZE},
+    voxel::chunk::Chunk,
 };
 use input::EventHandler;
 use rand::Rng;
@@ -65,63 +66,19 @@ fn setup(engine: &'static Engine) {
         .set_palette(gradient_to_palette(&turbo()));
 
     // Setup camera
-    engine.camera().set_eye(Point3::new(-25.0, 20.0, -25.0));
-    engine.camera().set_look_at(Point3::new(0.5, 20.0, -0.5));
-
-    let mut rng = rand::rng();
+    engine.camera().set_eye(Point3::new(-25.0, 64.0, -25.0));
+    engine.camera().set_look_at(Point3::new(0.5, 64.0, -0.5));
 
     let mut simulation = Simulation::new(nalgebra::Vector3::new(0.0, -9.81, 0.0));
 
-    let mut base = Object::new(
-        engine.device().clone(),
-        Matrix4::identity(),
-        Properties::default(),
-    );
-
-    let mut chunk = Chunk::empty();
-
-    for x in 0..CHUNK_SIZE {
-        for z in 0..CHUNK_SIZE {
-            chunk.set(x, 0, z, true, 30);
-        }
-    }
-
-    base.add_chunk(Vector3::new(0, 0, 0), chunk, true);
-
-    let base_rigid_body = RigidBodyBuilder::fixed()
-        .translation(nalgebra::Vector3::new(
-            CHUNK_SIZE as f32 / 2.0,
-            0.0,
-            CHUNK_SIZE as f32 / 2.0,
-        ))
-        .build();
-
-    let base_handle = simulation.add_rigid_body(base_rigid_body);
-
-    let base_collider =
-        ColliderBuilder::cuboid(CHUNK_SIZE as f32 / 2.0, 0.5, CHUNK_SIZE as f32 / 2.0);
-
-    simulation.add_collider(base_collider, Some(base_handle));
-
-    /*
-    let positions = vec![
-        vec![0.0, 32.0, 0.0],
-        vec![-1.0, 16.0, -1.0],
-        vec![CHUNK_SIZE as f32 - 1.0, 32.0, 0.0],
-        vec![CHUNK_SIZE as f32, 16.0, -1.0],
-        vec![0.0, 32.0, CHUNK_SIZE as f32 - 1.0],
-        vec![-1.0, 16.0, CHUNK_SIZE as f32 ],
-        vec![CHUNK_SIZE as f32 - 1.0, 32.0, CHUNK_SIZE as f32 - 1.0],
-        vec![CHUNK_SIZE as f32, 16.0, CHUNK_SIZE as f32 ],
-    ];
-    */
-
+    // Falling cubes
     let mut positions = vec![];
+    let mut rng = rand::rng();
 
-    for _ in 0..1000 {
-        let x = rng.random_range(0..=31) as f32;
-        let y = rng.random_range(32..=128) as f32;
-        let z = rng.random_range(0..=31) as f32;
+    for _ in 0..5000 {
+        let x = rng.random_range(-128..=127) as f32;
+        let y = rng.random_range(64..=128) as f32;
+        let z = rng.random_range(-128..=127) as f32;
         positions.push(nalgebra::Vector3::new(x, y, z));
     }
 
@@ -146,14 +103,14 @@ fn setup(engine: &'static Engine) {
 
         let cube_handle = simulation.add_rigid_body(cube_rigid_body);
 
-        let cube_collider = ColliderBuilder::cuboid(0.5, 0.5, 0.5);
+        let cube_collider = ColliderBuilder::cuboid(1.0, 1.0, 1.0);
 
         simulation.add_collider(cube_collider, Some(cube_handle));
 
         cubes.push((cube, cube_handle));
     }
 
-    //let mut terrain = Terrain::new(12, engine.device().clone());
+    let mut terrain = Terrain::new(12, engine.device().clone());
 
     // Render object
     let mut stats = Stats::default();
@@ -178,9 +135,7 @@ fn setup(engine: &'static Engine) {
 
         let mut pass = engine.renderer().start_render_pass().unwrap();
 
-        //terrain.render(engine, &mut pass);
-
-        pass.render_object(&base);
+        terrain.render(engine, &mut pass, &mut simulation);
 
         if last.elapsed().as_secs_f64() >= 1.0 / 60.0 {
             last = Instant::now();

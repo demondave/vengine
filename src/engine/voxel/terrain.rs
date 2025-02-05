@@ -1,16 +1,17 @@
-use std::sync::Arc;
-
-use ahash::{HashMap, HashMapExt};
-use cgmath::{Matrix4, SquareMatrix, Vector3};
-use noise::{NoiseFn, Perlin};
-use wgpu::Device;
-
-use crate::engine::{core::engine::Engine, renderer::pass::Pass};
-
 use super::{
     chunk::{Chunk, CHUNK_SIZE},
     object::ChunkEx,
 };
+use crate::engine::physics::simulation::Simulation;
+use crate::engine::{core::engine::Engine, renderer::pass::Pass};
+use ahash::{HashMap, HashMapExt};
+use cgmath::{Matrix4, SquareMatrix, Vector3};
+use nalgebra::DMatrix;
+use noise::{NoiseFn, Perlin};
+use rapier3d::dynamics::RigidBodyBuilder;
+use rapier3d::geometry::ColliderBuilder;
+use std::sync::Arc;
+use wgpu::Device;
 
 pub struct Terrain {
     distance: i32,
@@ -104,7 +105,7 @@ impl Terrain {
         }
     }
 
-    pub fn render(&mut self, engine: &Engine, pass: &mut Pass) {
+    pub fn render(&mut self, engine: &Engine, pass: &mut Pass, simulation: &mut Simulation) {
         let eye = engine.camera().get_eye();
 
         let eye_x = eye.x as i32 / CHUNK_SIZE as i32;
@@ -122,6 +123,42 @@ impl Terrain {
                         }
                         None => {
                             if let Some(chunk) = self.generate_chunk(x, y, z) {
+                                let rigid_body = RigidBodyBuilder::fixed()
+                                    .translation(nalgebra::Vector3::new(
+                                        chunk_pos.x as f32 * CHUNK_SIZE as f32
+                                            + CHUNK_SIZE as f32 / 2.0,
+                                        0.0,
+                                        chunk_pos.z as f32 * CHUNK_SIZE as f32
+                                            + CHUNK_SIZE as f32 / 2.0,
+                                    ))
+                                    .build();
+
+                                let handle = simulation.add_rigid_body(rigid_body);
+
+                                let mut heights = DMatrix::<f32>::zeros(CHUNK_SIZE, CHUNK_SIZE);
+
+                                for x in 0..CHUNK_SIZE {
+                                    for z in 0..CHUNK_SIZE {
+                                        let y = self.get_cached_height(
+                                            chunk_pos.x * CHUNK_SIZE as i32 + x as i32,
+                                            chunk_pos.z * CHUNK_SIZE as i32 + z as i32,
+                                        );
+
+                                        heights[(z, x)] = y as f32;
+                                    }
+                                }
+
+                                let collider = ColliderBuilder::heightfield(
+                                    heights,
+                                    nalgebra::Vector3::new(
+                                        CHUNK_SIZE as f32,
+                                        1.0,
+                                        CHUNK_SIZE as f32,
+                                    ),
+                                );
+
+                                simulation.add_collider(collider, Some(handle));
+
                                 pass.render_chunk(Matrix4::identity(), chunk_pos, &chunk);
                                 self.chunks.insert(chunk_pos, chunk);
                             }
