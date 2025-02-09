@@ -81,7 +81,7 @@ fn setup(engine: &'static Engine) {
         positions.push(nalgebra::Vector3::new(x, y, z));
     }
 
-    for y in (0..64).step_by(2)  {
+    for y in (0..64).step_by(2) {
         positions.push(nalgebra::Vector3::new(44.0, y as f32 + 55.0, 12.0));
     }
 
