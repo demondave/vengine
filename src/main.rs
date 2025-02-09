@@ -1,10 +1,12 @@
 use crate::engine::core::window::WindowBuilder;
 use crate::engine::physics::simulation::Simulation;
+use crate::engine::ui::egui::EguiRenderer;
 use crate::engine::voxel::chunk::VOXEL_SIZE;
 use crate::engine::voxel::object::{Object, Properties};
 use crate::engine::voxel::terrain::Terrain;
 use cgmath::{Matrix4, Point3, Quaternion, Vector3};
 use colorgrad::preset::turbo;
+use egui_wgpu::ScreenDescriptor;
 use engine::{
     core::{engine::Engine, window::Window},
     renderer::backend::Backend,
@@ -143,14 +145,32 @@ fn setup(engine: &'static Engine) {
         Ranking::High,
     );
 
+    // ui renderer
+    let mut egui_renderer = EguiRenderer::new(
+        engine.window().window(),
+        engine.device(),
+        *engine.renderer().backend().surface_format(),
+        None,
+        1,
+    );
+
     let mut last = Instant::now();
 
     while !engine.exited() {
         let start = Instant::now();
 
-        let mut pass = engine.renderer().start_render_pass().unwrap();
+        let output = engine
+            .renderer()
+            .backend()
+            .surface()
+            .get_current_texture()
+            .unwrap();
 
-        terrain.render(engine, &mut pass, &mut simulation);
+        let mut engine_pass = engine.renderer().start_render_pass(&output).unwrap();
+        let ui_pass =
+            egui_renderer.start_render_pass(engine.window().window(), &output, engine.device());
+
+        terrain.render(engine, &mut engine_pass, &mut simulation);
 
         if last.elapsed().as_secs_f64() >= 1.0 / 60.0 {
             last = Instant::now();
@@ -175,10 +195,27 @@ fn setup(engine: &'static Engine) {
             ));
 
             cube.set_transform(transform);
-            pass.render_object(cube);
+            engine_pass.render_object(cube);
         }
 
-        engine.renderer().finish_render_pass(pass);
+        let engine_encoder = engine.renderer().finish_render_pass(engine_pass);
+        let ui_encoder = egui_renderer.finish_render_pass(
+            ui_pass,
+            engine.device(),
+            engine.renderer().backend().queue(),
+            &ScreenDescriptor {
+                size_in_pixels: [engine.window().dimension().0, engine.window().dimension().1],
+                pixels_per_point: engine.window().window().scale_factor() as f32,
+            },
+        );
+
+        engine
+            .renderer()
+            .backend()
+            .queue()
+            .submit([engine_encoder.finish(), ui_encoder.finish()]);
+
+        output.present();
 
         let end = Instant::now();
 
