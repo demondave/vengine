@@ -6,6 +6,7 @@ use crate::engine::voxel::object::{Object, Properties};
 use crate::engine::voxel::terrain::Terrain;
 use cgmath::{Matrix4, Point3, Quaternion, Vector3};
 use colorgrad::preset::turbo;
+use egui::{Align2, Area, Color32, FontFamily, Frame, RichText};
 use egui_wgpu::ScreenDescriptor;
 use engine::{
     core::{engine::Engine, window::Window},
@@ -167,7 +168,7 @@ fn setup(engine: &'static Engine) {
             .unwrap();
 
         let mut engine_pass = engine.renderer().start_render_pass(&output).unwrap();
-        let ui_pass =
+        let mut ui_pass =
             egui_renderer.start_render_pass(engine.window().window(), &output, engine.device());
 
         terrain.render(engine, &mut engine_pass, &mut simulation);
@@ -198,6 +199,23 @@ fn setup(engine: &'static Engine) {
             engine_pass.render_object(cube);
         }
 
+        ui_pass.render_ui(|ui| {
+            Area::new("stats_display".into())
+                .anchor(Align2::LEFT_TOP, [10.0, 10.0])
+                .show(ui, |ui| {
+                    Frame::new().fill(Color32::BLACK).show(ui, |ui| {
+                        for line in stats.get() {
+                            ui.label(
+                                RichText::new(line)
+                                    .color(Color32::WHITE)
+                                    .size(12.0)
+                                    .family(FontFamily::Monospace),
+                            );
+                        }
+                    });
+                });
+        });
+
         let engine_encoder = engine.renderer().finish_render_pass(engine_pass);
         let ui_encoder = egui_renderer.finish_render_pass(
             ui_pass,
@@ -221,7 +239,5 @@ fn setup(engine: &'static Engine) {
 
         stats.push_metric("fps", 1.0 / ((end - start).as_secs_f64()));
         stats.push_metric("frame_time", (end - start).as_secs_f64() * 1000.0);
-
-        stats.print();
     }
 }
