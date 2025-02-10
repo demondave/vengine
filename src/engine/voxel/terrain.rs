@@ -15,7 +15,8 @@ use wgpu::Device;
 pub const MAX_STACKED_CHUNKS: usize = 8;
 
 pub struct Terrain {
-    distance: i32,
+    seed: u32,
+    distance: u32,
     device: Arc<Device>,
     chunks: HashMap<Vector3<i32>, ChunkEx>,
     height_cache: HashMap<(i32, i32), usize>,
@@ -23,10 +24,11 @@ pub struct Terrain {
 }
 
 impl Terrain {
-    pub fn new(distance: i32, device: Arc<Device>) -> Terrain {
+    pub fn new(seed: u32, distance: u32, device: Arc<Device>) -> Terrain {
         let capacity = (distance * 2).pow(2) as usize;
 
         Terrain {
+            seed,
             distance,
             device,
             chunks: HashMap::with_capacity(capacity),
@@ -39,7 +41,7 @@ impl Terrain {
         *self
             .height_cache
             .entry((x, z))
-            .or_insert_with(|| heightmap(x, z))
+            .or_insert_with(|| heightmap(self.seed, x, z))
     }
 
     fn generate_chunk(&mut self, chunk_x: i32, chunk_y: i32, chunk_z: i32) -> Option<ChunkEx> {
@@ -119,9 +121,11 @@ impl Terrain {
         let eye_y = eye.y as i32 / CHUNK_SIZE as i32;
         let eye_z = eye.z as i32 / CHUNK_SIZE as i32;
 
-        for x in (eye_x - self.distance)..(eye_x + self.distance) {
-            for y in (eye_y - self.distance)..(eye_y + self.distance) {
-                for z in (eye_z - self.distance)..(eye_z + self.distance) {
+        let distance = self.distance as i32;
+
+        for x in (eye_x - distance)..(eye_x + distance) {
+            for y in (eye_y - distance)..(eye_y + distance) {
+                for z in (eye_z - distance)..(eye_z + distance) {
                     let chunk_pos = Vector3::new(x, y, z);
 
                     match self.chunks.get(&chunk_pos) {
@@ -177,8 +181,7 @@ impl Terrain {
     }
 }
 
-fn heightmap(x: i32, z: i32) -> usize {
-    let seed = 69;
+fn heightmap(seed: u32, x: i32, z: i32) -> usize {
     let perlin = Perlin::new(seed);
 
     const SCALE: f64 = 0.01;
