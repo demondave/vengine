@@ -6,6 +6,8 @@ pub struct Pass {
     pass: RenderPass<'static>,
 
     context: Context,
+
+    static_uis: bool,
 }
 
 impl Pass {
@@ -18,6 +20,7 @@ impl Pass {
             encoder,
             pass,
             context,
+            static_uis: false,
         }
     }
 
@@ -25,7 +28,11 @@ impl Pass {
         f(&self.context);
     }
 
-    pub(super) fn finish(self) -> (CommandEncoder, RenderPass<'static>) {
-        (self.encoder, self.pass)
+    pub fn render_static_uis(&mut self) {
+        self.static_uis = true;
+    }
+
+    pub(super) fn finish(self) -> (CommandEncoder, RenderPass<'static>, bool) {
+        (self.encoder, self.pass, self.static_uis)
     }
 }

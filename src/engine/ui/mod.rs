@@ -1,2 +1,2 @@
-pub mod egui;
 pub mod pass;
+pub mod renderer;

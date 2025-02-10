@@ -1,6 +1,5 @@
 use crate::engine::core::window::WindowBuilder;
 use crate::engine::physics::simulation::Simulation;
-use crate::engine::ui::egui::EguiRenderer;
 use crate::engine::voxel::chunk::VOXEL_SIZE;
 use crate::engine::voxel::object::Object;
 use crate::engine::voxel::terrain::Terrain;
@@ -172,15 +171,6 @@ fn setup(engine: &'static Engine) {
         Ranking::High,
     );
 
-    // ui renderer
-    let mut egui_renderer = EguiRenderer::new(
-        engine.window().window(),
-        engine.device(),
-        *engine.renderer().backend().surface_format(),
-        None,
-        1,
-    );
-
     let mut last = Instant::now();
 
     while !engine.exited() {
@@ -201,7 +191,7 @@ fn setup(engine: &'static Engine) {
             .unwrap();
 
         let mut engine_pass = engine.renderer().start_render_pass(&output).unwrap();
-        let mut ui_pass = egui_renderer.start_render_pass(
+        let mut ui_pass = engine.ui_renderer().start_render_pass(
             engine.window().window(),
             &output,
             engine.device(),
@@ -270,13 +260,15 @@ fn setup(engine: &'static Engine) {
                 });
         });
 
+        ui_pass.render_static_uis();
+
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [dimensions.0, dimensions.1],
             pixels_per_point: engine.window().window().scale_factor() as f32,
         };
 
         let engine_encoder = engine.renderer().finish_render_pass(engine_pass);
-        let ui_encoder = egui_renderer.finish_render_pass(
+        let ui_encoder = engine.ui_renderer().finish_render_pass(
             ui_pass,
             engine.device(),
             engine.renderer().backend().queue(),
