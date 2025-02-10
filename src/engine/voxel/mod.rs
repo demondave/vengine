@@ -1,4 +1,5 @@
 pub mod chunk;
+pub mod chunk_mesh;
 pub mod object;
 pub mod quad;
-pub(crate) mod terrain;
+pub mod terrain;

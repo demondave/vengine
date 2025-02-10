@@ -1,16 +1,14 @@
 use wgpu::{Device, RenderPipeline, TextureFormat};
 
-use crate::engine::renderer::{camera::Camera, palette::Palette, texture::Texture};
+use crate::engine::{
+    renderer::{camera::Camera, texture::Texture},
+    voxel::quad::Quad,
+};
 
-pub fn voxel_pipeline(
-    device: &Device,
-    camera: &Camera,
-    palette: &Palette,
-    format: TextureFormat,
-) -> RenderPipeline {
+pub fn voxel_pipeline(device: &Device, camera: &Camera, format: TextureFormat) -> RenderPipeline {
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("vengine::voxel_pipeline_layout"),
-        bind_group_layouts: &[camera.bind_group_layout(), palette.bind_group_layout()],
+        bind_group_layouts: &[camera.bind_group_layout()],
         push_constant_ranges: &[wgpu::PushConstantRange {
             stages: wgpu::ShaderStages::VERTEX,
             range: 0..(size_of::<[f32; 4 * 4]>() + size_of::<[i32; 3]>()) as u32,
@@ -83,12 +81,19 @@ pub fn vertex_desc() -> wgpu::VertexBufferLayout<'static> {
 
 pub fn instance_desc() -> wgpu::VertexBufferLayout<'static> {
     wgpu::VertexBufferLayout {
-        array_stride: std::mem::size_of::<u32>() as wgpu::BufferAddress,
+        array_stride: std::mem::size_of::<Quad>() as wgpu::BufferAddress,
         step_mode: wgpu::VertexStepMode::Instance,
-        attributes: &[wgpu::VertexAttribute {
-            offset: 0,
-            shader_location: 1,
-            format: wgpu::VertexFormat::Uint32,
-        }],
+        attributes: &[
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 1,
+                format: wgpu::VertexFormat::Uint32,
+            },
+            wgpu::VertexAttribute {
+                offset: 4, // 4 bytes offset für den zweiten u32 Wert
+                shader_location: 2,
+                format: wgpu::VertexFormat::Uint32,
+            },
+        ],
     }
 }

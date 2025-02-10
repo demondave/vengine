@@ -1,210 +1,122 @@
-use std::{collections::hash_map::Iter, sync::Arc};
-
-use ahash::{HashMap, HashMapExt};
-use cgmath::{Matrix4, Vector3};
-use dda_voxelize::DdaVoxelizer;
-use wgpu::{
-    util::{BufferInitDescriptor, DeviceExt},
-    Buffer, Device,
-};
-
 use super::{
     chunk::{Chunk, CHUNK_SIZE},
-    quad::Quad,
+    chunk_mesh::ChunkMesh,
 };
-
-#[derive(Clone, Copy, Default)]
-pub struct Properties(u8);
-
-impl Properties {
-    pub fn set_is_static(&mut self, value: bool) {
-        if value {
-            self.0 |= 1 << 0;
-        } else {
-            self.0 &= !(1 << 0);
-        }
-    }
-
-    pub fn is_static(&self) -> bool {
-        (self.0 & (1u8 << 0)) != 0
-    }
-
-    pub fn set_is_axis_aligned(&mut self, value: bool) {
-        if value {
-            self.0 |= 1 << 1;
-        } else {
-            self.0 &= !(1 << 1);
-        }
-    }
-
-    pub fn is_axis_aligned(&self) -> bool {
-        (self.0 & (1u8 << 1)) != 0
-    }
-}
-
-pub struct ChunkEx {
-    chunk: Chunk,
-    quads: Vec<Quad>,
-    buffer: Option<Buffer>,
-}
-
-impl ChunkEx {
-    pub fn new(chunk: Chunk) -> Self {
-        Self {
-            chunk,
-            quads: Vec::new(),
-            buffer: None,
-        }
-    }
-
-    pub fn remesh(&mut self) {
-        self.chunk.remesh(&mut self.quads);
-    }
-
-    pub fn quads(&self) -> &[Quad] {
-        &self.quads
-    }
-
-    pub fn allocate(&mut self, device: &Device) -> bool {
-        if !self.quads.is_empty() {
-            self.buffer = Some(device.create_buffer_init(&BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(&self.quads),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
-            }));
-
-            return true;
-        }
-
-        false
-    }
-
-    pub fn deallocate(&self) {
-        if let Some(buffer) = &self.buffer {
-            buffer.destroy();
-        }
-    }
-
-    pub fn buffer(&self) -> &Option<Buffer> {
-        &self.buffer
-    }
-
-    pub fn chunk(&self) -> &Chunk {
-        &self.chunk
-    }
-}
+use ahash::{HashMap, HashMapExt};
+use cgmath::{Matrix4, Vector3};
+use std::{
+    collections::{hash_map::Iter, HashSet},
+    sync::Arc,
+};
+use wgpu::Device;
 
 pub struct Object {
     // Object Transform
     transform: Matrix4<f32>,
     // Chunks with additional information
-    chunks: HashMap<Vector3<i32>, ChunkEx>,
-    // Object properties, eg. if the object is axis aligned or static
-    properties: Properties,
+    chunks: HashMap<Vector3<i32>, ChunkMesh>,
     // Device
     device: Arc<Device>,
 }
 
 impl Object {
-    pub fn new(device: Arc<Device>, transform: Matrix4<f32>, properties: Properties) -> Object {
+    pub fn new(device: Arc<Device>, transform: Matrix4<f32>) -> Object {
         Object {
             transform,
             chunks: HashMap::new(),
-            properties,
             device,
         }
+    }
+
+    pub fn count(&self) -> usize {
+        let mut count = 0;
+        for chunk in self.chunks.values() {
+            count += chunk.chunk().count()
+        }
+
+        count
     }
 
     pub fn transform(&self) -> &Matrix4<f32> {
         &self.transform
     }
 
-    pub fn voxelize_from_mesh(
+    pub fn from_voxels(
         device: Arc<Device>,
         transform: Matrix4<f32>,
-        properties: Properties,
-        triangles: &[[[f32; 3]; 3]],
+        mut voxels: Vec<([i32; 3], [u8; 4])>,
     ) -> Object {
-        let mut voxelizer = DdaVoxelizer::new();
-
-        for triangle in triangles {
-            voxelizer.add_triangle(triangle, &|_, [_, _, _], __| [255u8, 255u8, 255u8]);
-        }
-
-        let voxels = voxelizer.finalize();
+        let mut chunks: HashSet<Vector3<i32>> = HashSet::new();
 
         let mut min_x = i32::MAX;
         let mut min_y = i32::MAX;
         let mut min_z = i32::MAX;
 
-        for key in voxels.keys() {
-            min_x = min_x.min(key[0]);
-            min_y = min_y.min(key[1]);
-            min_z = min_z.min(key[2]);
+        for (voxel, _) in &voxels {
+            min_x = min_x.min(voxel[0]);
+            min_y = min_y.min(voxel[1]);
+            min_z = min_z.min(voxel[2]);
         }
 
         min_x = min_x.abs();
         min_y = min_y.abs();
         min_z = min_z.abs();
 
-        let mut chunks: HashMap<Vector3<i32>, ChunkEx> = HashMap::new();
+        for (voxel, _) in &mut voxels {
+            voxel[0] = voxel[0].saturating_add(min_x);
+            voxel[1] = voxel[1].saturating_add(min_y);
+            voxel[2] = voxel[2].saturating_add(min_z);
 
-        for (voxel, _) in voxels {
             let pos = Vector3::new(
-                (voxel[0] + min_x) / CHUNK_SIZE as i32,
-                (voxel[1] + min_y) / CHUNK_SIZE as i32,
-                (voxel[2] + min_z) / CHUNK_SIZE as i32,
+                voxel[0] / CHUNK_SIZE as i32,
+                voxel[1] / CHUNK_SIZE as i32,
+                voxel[2] / CHUNK_SIZE as i32,
             );
 
-            let chunk = match chunks.get_mut(&pos) {
-                Some(r) => r,
-                None => {
-                    chunks.insert(
-                        pos,
-                        ChunkEx {
-                            chunk: Chunk::empty(),
-                            quads: Vec::new(),
-                            buffer: None,
-                        },
-                    );
+            chunks.insert(pos);
+        }
 
-                    chunks.get_mut(&pos).unwrap()
-                }
-            };
+        let chunks = chunks.into_iter().collect::<Vec<Vector3<i32>>>();
 
-            // Berechne lokale Koordinaten im Chunk
-            let local_x = (voxel[0] + min_x) % CHUNK_SIZE as i32;
-            let local_y = (voxel[1] + min_y) % CHUNK_SIZE as i32;
-            let local_z = (voxel[2] + min_z) % CHUNK_SIZE as i32;
+        let mut chunks = HashMap::from_iter(
+            chunks
+                .into_iter()
+                .map(|c| (c, ChunkMesh::new(Chunk::empty()))),
+        );
 
-            chunk.chunk.set(
+        for (voxel, c) in &voxels {
+            let chunk = chunks
+                .get_mut(&Vector3::new(
+                    voxel[0] / CHUNK_SIZE as i32,
+                    voxel[1] / CHUNK_SIZE as i32,
+                    voxel[2] / CHUNK_SIZE as i32,
+                ))
+                .unwrap();
+
+            let local_x = voxel[0] % CHUNK_SIZE as i32;
+            let local_y = voxel[1] % CHUNK_SIZE as i32;
+            let local_z = voxel[2] % CHUNK_SIZE as i32;
+
+            chunk.chunk_mut().set(
                 local_x as usize,
                 local_y as usize,
                 local_z as usize,
                 true,
-                0,
+                *c,
             );
         }
 
         for chunk in chunks.values_mut() {
-            chunk.chunk.remesh(&mut chunk.quads);
+            chunk.remesh();
             chunk.allocate(&device);
         }
 
         Object {
             transform,
             chunks,
-            properties,
+
             device,
         }
-    }
-
-    pub fn properties(&self) -> &Properties {
-        &self.properties
-    }
-
-    pub fn properties_mut(&mut self) -> &mut Properties {
-        &mut self.properties
     }
 
     pub fn get_transform(&self) -> &Matrix4<f32> {
@@ -216,14 +128,10 @@ impl Object {
     }
 
     pub fn add_chunk(&mut self, offset: Vector3<i32>, chunk: Chunk, allocate: bool) {
-        let mut chunk = ChunkEx {
-            chunk,
-            quads: Vec::with_capacity(2 ^ 16),
-            buffer: None,
-        };
+        let mut chunk = ChunkMesh::new(chunk);
 
         if allocate {
-            chunk.chunk.remesh(&mut chunk.quads);
+            chunk.remesh();
             chunk.allocate(&self.device);
         }
 
@@ -231,21 +139,18 @@ impl Object {
     }
 
     pub fn remove_chunk(&mut self, position: &Vector3<i32>) -> Option<Chunk> {
-        match self.chunks.remove(position) {
-            Some(c) => Some(c.chunk),
-            None => None,
-        }
+        self.chunks.remove(position).map(|c| c.into_chunk())
     }
 
-    pub fn get_chunk(&self, position: &Vector3<i32>) -> Option<&ChunkEx> {
+    pub fn get_chunk(&self, position: &Vector3<i32>) -> Option<&ChunkMesh> {
         self.chunks.get(position)
     }
 
-    pub fn get_chunk_mut(&mut self, position: Vector3<i32>) -> Option<&mut ChunkEx> {
+    pub fn get_chunk_mut(&mut self, position: Vector3<i32>) -> Option<&mut ChunkMesh> {
         self.chunks.get_mut(&position)
     }
 
-    pub fn chunks(&self) -> Iter<Vector3<i32>, ChunkEx> {
+    pub fn chunks(&self) -> Iter<Vector3<i32>, ChunkMesh> {
         self.chunks.iter()
     }
 }
