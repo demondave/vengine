@@ -1,12 +1,14 @@
+use crate::engine::core::engine::Engine;
+use crate::engine::ui::renderer::StaticUiGuard;
+use cgmath::{Deg, InnerSpace, Matrix3, Vector3, Zero};
 use core::f32;
+use egui::{Color32, RichText, Sense};
 use std::{
     collections::HashMap,
     thread::sleep,
     time::{Duration, Instant},
 };
-
-use crate::engine::core::engine::Engine;
-use cgmath::{Deg, InnerSpace, Matrix3, Vector3, Zero};
+use winit::window::CursorGrabMode;
 use winit::{
     event::{DeviceEvent, Event, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
@@ -21,6 +23,8 @@ const TICKS: f64 = 64.0;
 pub struct EventHandler {
     engine: &'static Engine<'static>,
     keymap: HashMap<KeyCode, bool>,
+
+    options_ui_guard: Option<StaticUiGuard<'static>>,
 }
 
 impl EventHandler {
@@ -38,6 +42,7 @@ impl EventHandler {
         Self {
             engine,
             keymap: HashMap::from_iter(keys.iter().map(|k| (*k, false))),
+            options_ui_guard: None,
         }
     }
 
@@ -132,6 +137,11 @@ impl EventHandler {
     }
 
     pub fn handle_device_event(&mut self, event: DeviceEvent) {
+        // option menu is open
+        if self.options_ui_guard.is_some() {
+            return;
+        }
+
         if let DeviceEvent::MouseMotion {
             delta: (delta_x, delta_y),
         } = event
@@ -165,6 +175,10 @@ impl EventHandler {
     }
 
     pub fn handle_window_event(&mut self, event: WindowEvent) {
+        self.engine
+            .ui_renderer()
+            .handle_input(self.engine.window().window(), &event);
+
         match event {
             WindowEvent::CloseRequested => {
                 self.engine.exit();
@@ -174,6 +188,18 @@ impl EventHandler {
                 event,
                 is_synthetic: _,
             } => {
+                if let PhysicalKey::Code(KeyCode::Escape) = event.physical_key {
+                    if !event.state.is_pressed() {
+                        self.on_escape();
+                    }
+                    return;
+                }
+
+                // option menu is open
+                if self.options_ui_guard.is_some() {
+                    return;
+                }
+
                 if let PhysicalKey::Code(code) = event.physical_key {
                     if let Some(state) = self.keymap.get_mut(&code) {
                         *state = event.state.is_pressed();
@@ -188,5 +214,51 @@ impl EventHandler {
 
             _ => {}
         }
+    }
+
+    fn on_escape(&mut self) {
+        let window = self.engine.window().window();
+
+        if let Some(guard) = self.options_ui_guard.take() {
+            drop(guard);
+
+            window.set_cursor_visible(false);
+            window
+                .set_cursor_grab(CursorGrabMode::Confined)
+                .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked))
+                .unwrap();
+
+            return;
+        }
+
+        window.set_cursor_visible(true);
+        window.set_cursor_grab(CursorGrabMode::None).unwrap();
+
+        self.options_ui_guard = Some(self.engine.ui_renderer().add_static_ui(|ctx| {
+            let screen_rect = ctx.screen_rect();
+
+            egui::Area::new("pause_menu".into())
+                .fixed_pos(screen_rect.center())
+                .sense(Sense::click())
+                .show(ctx, |ui| {
+                    egui::Frame::new()
+                        .fill(Color32::from_rgba_unmultiplied(0, 0, 0, 230))
+                        .show(ui, |ui| {
+                            ui.set_min_size(screen_rect.size());
+
+                            ui.add_space(screen_rect.height() / 2. - 60. / 2.);
+
+                            ui.vertical_centered(|ui| {
+                                let button = ui.add_sized(
+                                    [140., 60.],
+                                    egui::Button::new(RichText::new("Exit").size(24.)),
+                                );
+                                if button.clicked() {
+                                    self.engine.exit();
+                                }
+                            });
+                        })
+                });
+        }))
     }
 }
