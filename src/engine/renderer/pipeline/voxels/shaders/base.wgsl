@@ -5,9 +5,6 @@ struct CameraUniform {
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
 
-@group(1) @binding(0)
-var<uniform> palette: array<vec4<f32>,128>;
-
 struct PushConstant {
     transform: mat4x4<f32>,
     offset: vec3<i32>
@@ -26,7 +23,8 @@ struct VertexOutput {
 }
 
 struct InstanceInput {
-    @location(1) instance: u32,
+    @location(1) low: u32, 
+    @location(2) color: u32, 
 };
 
 const CHUNK_SIZE: f32 = 32.0;
@@ -39,30 +37,29 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
 
-    var position_x: u32 = instance.instance & 63;
-    var position_y: u32 = (instance.instance >> 6) & 63;
-    var position_z: u32 = (instance.instance >> 12) & 63;
-    var direction: u32 = (instance.instance >> 18) & 7;
-    var texture_id: u32 = (instance.instance >> 21) & 127;
+    var position_x: u32 = instance.low & 63u;
+    var position_y: u32 = (instance.low >> 6u) & 63u;
+    var position_z: u32 = (instance.low >> 12u) & 63u;
+    var direction: u32 = (instance.low >> 18u) & 7u;
 
     var position: vec3<f32> = model.position;
 
     switch direction {
-        // Up
+        // Left
         case 0u: {
+            position = vec3(position.y + 1.0, -position.x + 1.0, position.z);
+        }
+         // Right
+        case 1u: {
+            position = vec3(position.y, position.x, position.z);
+        }
+        // Up
+        case 2u: {
             position.y += 1.0;
         }
         // Down
-        case 1u: {
-            position = vec3(position.x, position.y, -position.z - 1.0);
-        }
-        // Left
-        case 2u: {
-            position = vec3(position.y + 1.0, -position.x + 1.0, position.z);
-        }
-        // Right
         case 3u: {
-            position = vec3(position.y, position.x, position.z);
+            position = vec3(position.x, position.y, -position.z - 1.0);
         }
         // Front
         case 4u: {
@@ -80,26 +77,26 @@ fn vs_main(
     let pos4 = pc.transform * vec4<f32>(position, 1.0);
     position = (pos4.xyz / pos4.w);
 
-    out.color = palette[texture_id];
+    out.color = unpack_color(instance.color);
 
     // Apply "shading"
     switch direction {
-        // Up
-        case 0u: {
-            out.color = darken_color(out.color, 0.15);
-        }
-        // Down
-        case 1u: {
-            out.color = darken_color(out.color, 0.4);
-        }
         // Left
-        case 2u: {
+        case 0u: {
             out.color = darken_color(out.color, 0.3);
         }
         // Right
-        case 3u: {
+        case 1u: {
             out.color = darken_color(out.color, 0.325);
         }
+        // Up
+        case 2u: {
+            out.color = darken_color(out.color, 0.15);
+        }
+        // Down
+        case 3u: {
+            out.color = darken_color(out.color, 0.4);
+        } 
         // Front
         case 4u: {
             out.color = darken_color(out.color, 0.35);
@@ -114,6 +111,14 @@ fn vs_main(
     out.clip_position = camera.view_proj * vec4<f32>(position, 1.0);
 
     return out;
+}
+
+fn unpack_color(color: u32) -> vec4<f32> {
+    let r = f32((color >> 24u) & 0xFFu) / 255.0;
+    let g = f32((color >> 16u) & 0xFFu) / 255.0;
+    let b = f32((color >> 8u) & 0xFFu) / 255.0;
+    let a = f32(color & 0xFFu) / 255.0;
+    return vec4<f32>(r, g, b, a);
 }
 
 fn darken_color(color: vec4<f32>, factor: f32) -> vec4<f32> {

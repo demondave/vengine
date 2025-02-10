@@ -1,7 +1,6 @@
+use crate::engine::voxel::{chunk_mesh::ChunkMesh, object::Object};
 use cgmath::{Array, Matrix, Matrix4, Vector3};
 use wgpu::{CommandEncoder, RenderPass};
-
-use crate::engine::voxel::object::{ChunkEx, Object};
 
 use super::texture::Texture;
 
@@ -46,16 +45,52 @@ impl<'a> Pass<'a> {
                     bytemuck::cast_slice(&[pc]),
                 );
 
+                /*
+                let position = object.transform().w.truncate()
+                    + offset.cast::<f32>().unwrap() * CHUNK_SIZE as f32 * VOXEL_SIZE;
+
+                let visible = chunk.visible(
+                    &self.renderer.camera().get_eye().to_vec(),
+                    position,
+                    Vector3::zero(),
+                );
+
+                let offsets = chunk.offsets();
+
+                for idx in 0..6 {
+                    if !visible[idx] {
+                        continue;
+                    }
+
+                    let start = offsets[idx] as u32;
+                    let end = *(offsets
+                        .get(idx + 1)
+                        .unwrap_or(&(chunk.quads().unwrap().len() as u16)))
+                        as u32;
+
+                    // Set instance buffer
+                    self.pass.set_vertex_buffer(1, buffer.slice(..));
+
+                    // Draw chunk
+                    self.pass.draw(0..4, start..end);
+                }
+                */
+
                 // Set instance buffer
                 self.pass.set_vertex_buffer(1, buffer.slice(..));
 
                 // Draw chunk
-                self.pass.draw(0..4, 0..chunk.quads().len() as u32);
+                self.pass.draw(0..4, 0..chunk.quads().unwrap().len() as u32);
             }
         }
     }
 
-    pub fn render_chunk(&mut self, transform: Matrix4<f32>, offset: Vector3<i32>, chunk: &ChunkEx) {
+    pub fn render_chunk(
+        &mut self,
+        transform: Matrix4<f32>,
+        offset: Vector3<i32>,
+        chunk: &ChunkMesh,
+    ) {
         let mut pc = PushConstant {
             transform: [0f32; 4 * 4],
             offset: [0i32; 3],
@@ -78,7 +113,7 @@ impl<'a> Pass<'a> {
             self.pass.set_vertex_buffer(1, buffer.slice(..));
 
             // Draw chunk
-            self.pass.draw(0..4, 0..chunk.quads().len() as u32);
+            self.pass.draw(0..4, 0..chunk.quads().unwrap().len() as u32);
         }
     }
 

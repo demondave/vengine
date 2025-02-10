@@ -2,7 +2,7 @@ use crate::engine::core::window::WindowBuilder;
 use crate::engine::physics::simulation::Simulation;
 use crate::engine::ui::egui::EguiRenderer;
 use crate::engine::voxel::chunk::VOXEL_SIZE;
-use crate::engine::voxel::object::{Object, Properties};
+use crate::engine::voxel::object::Object;
 use crate::engine::voxel::terrain::Terrain;
 use cgmath::{Matrix4, Point3, Quaternion, Vector3};
 use colorgrad::preset::turbo;
@@ -20,17 +20,31 @@ use rapier3d::geometry::ColliderBuilder;
 use stats::{Ranking, Stats};
 use std::sync::Arc;
 use std::time::Instant;
-use util::gradient_to_palette;
 
 pub mod engine;
 pub mod input;
+pub mod io;
 pub mod stats;
-pub mod util;
+
+#[cfg(not(feature = "profiling"))]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
+#[cfg(feature = "profiling")]
+#[global_allocator]
+static GLOBAL: tracy_client::ProfiledAllocator<std::alloc::System> =
+    tracy_client::ProfiledAllocator::new(std::alloc::System, 100);
 
 pub const TERRAIN_RENDER_DISTANCE: u32 = 12;
 
 pub fn main() {
     env_logger::init();
+
+    #[cfg(feature = "profiling")]
+    {
+        use tracy_client::Client;
+        Client::start();
+    }
 
     let (window_fut, run_fn) = WindowBuilder::new()
         .size(1000, 1000)
@@ -63,12 +77,6 @@ fn init(window: Arc<Window>) {
 }
 
 fn setup(engine: &'static Engine) {
-    // Setup texture palette
-    engine
-        .renderer()
-        .palette()
-        .set_palette(gradient_to_palette(&turbo()));
-
     // Setup camera
     engine.camera().set_eye(Point3::new(-25.0, 64.0, -25.0));
     engine.camera().set_look_at(Point3::new(0.5, 64.0, -0.5));
@@ -96,12 +104,22 @@ fn setup(engine: &'static Engine) {
         let mut cube = Object::new(
             engine.device().clone(),
             Matrix4::from_translation(Vector3::new(i[0], i[1], i[2])),
-            Properties::default(),
         );
 
         let mut chunk = Chunk::empty();
 
-        chunk.set(0, 0, 0, true, rng.random_range(0..=127));
+        chunk.set(
+            0,
+            0,
+            0,
+            true,
+            [
+                rng.random_range(0..=255),
+                rng.random_range(0..=255),
+                rng.random_range(0..=255),
+                255,
+            ],
+        );
 
         cube.add_chunk(Vector3::new(0, 0, 0), chunk, true);
 
@@ -124,7 +142,12 @@ fn setup(engine: &'static Engine) {
     }
 
     let seed: u32 = rng.random();
-    let mut terrain = Terrain::new(seed, TERRAIN_RENDER_DISTANCE, engine.device().clone());
+    let mut terrain = Terrain::new(
+        seed,
+        TERRAIN_RENDER_DISTANCE,
+        Box::new(turbo()),
+        engine.device().clone(),
+    );
 
     // Render object
     let mut stats = Stats::default();

@@ -5,8 +5,8 @@ use crossbeam::atomic::AtomicCell;
 use wgpu::{util::DeviceExt, Buffer, CommandEncoder, RenderPipeline, SurfaceTexture};
 
 use super::{
-    backend::Backend, camera::Camera, palette::Palette, pass::Pass,
-    pipeline::voxels::voxel_pipeline, texture::Texture,
+    backend::Backend, camera::Camera, pass::Pass, pipeline::voxels::voxel_pipeline,
+    texture::Texture,
 };
 
 pub struct Renderer<'a> {
@@ -18,8 +18,6 @@ pub struct Renderer<'a> {
     voxel_pipeline: RenderPipeline,
     // Camera
     camera: Camera,
-    // Palette
-    palette: Palette,
     // Depth texture
     depth_texture: Mutex<Option<Texture>>,
     // Quad
@@ -50,9 +48,6 @@ impl<'a> Renderer<'a> {
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
-        // Palette
-        let palette = Palette::new(backend.device(), backend.queue().clone());
-
         let lock = backend.surface_configuration().lock().unwrap();
 
         let depth_texture =
@@ -60,19 +55,13 @@ impl<'a> Renderer<'a> {
 
         drop(lock);
 
-        let voxel_pipeline = voxel_pipeline(
-            backend.device(),
-            &camera,
-            &palette,
-            *backend.surface_format(),
-        );
+        let voxel_pipeline = voxel_pipeline(backend.device(), &camera, *backend.surface_format());
 
         Self {
             backend,
             size: AtomicCell::new(size),
             camera,
 
-            palette,
             depth_texture: Mutex::new(Some(depth_texture)),
             quad,
             voxel_pipeline,
@@ -130,7 +119,6 @@ impl<'a> Renderer<'a> {
 
         render_pass.set_pipeline(&self.voxel_pipeline);
         render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
-        render_pass.set_bind_group(1, self.palette.bind_group(), &[]);
 
         // Quad buffer (bleibt für alle Chunks gleich)
         render_pass.set_vertex_buffer(0, self.quad.slice(..));
@@ -155,10 +143,6 @@ impl<'a> Renderer<'a> {
 
     pub fn camera(&self) -> &Camera {
         &self.camera
-    }
-
-    pub fn palette(&self) -> &Palette {
-        &self.palette
     }
 
     pub fn resize(&self, width: u32, height: u32) {

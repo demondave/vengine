@@ -2,9 +2,10 @@ use crate::engine::core::engine::Engine;
 use crate::engine::physics::simulation::Simulation;
 use crate::engine::renderer::pass::Pass;
 use crate::engine::voxel::chunk::{Chunk, CHUNK_SIZE, VOXEL_SIZE};
-use crate::engine::voxel::object::ChunkEx;
+use crate::engine::voxel::chunk_mesh::ChunkMesh;
 use ahash::{HashMap, HashMapExt};
 use cgmath::{Matrix4, SquareMatrix, Vector3};
+use colorgrad::Gradient;
 use nalgebra::DMatrix;
 use noise::{NoiseFn, Perlin};
 use rapier3d::dynamics::RigidBodyBuilder;
@@ -17,19 +18,26 @@ pub const MAX_STACKED_CHUNKS: usize = 8;
 pub struct Terrain {
     seed: u32,
     distance: u32,
+    gradient: Box<dyn Gradient>,
     device: Arc<Device>,
-    chunks: HashMap<Vector3<i32>, ChunkEx>,
+    chunks: HashMap<Vector3<i32>, ChunkMesh>,
     height_cache: HashMap<(i32, i32), usize>,
     height_bounds_cache: HashMap<(i32, i32), (i32, i32)>,
 }
 
 impl Terrain {
-    pub fn new(seed: u32, distance: u32, device: Arc<Device>) -> Terrain {
+    pub fn new(
+        seed: u32,
+        distance: u32,
+        gradient: Box<dyn Gradient>,
+        device: Arc<Device>,
+    ) -> Terrain {
         let capacity = (distance * 2).pow(2) as usize;
 
         Terrain {
             seed,
             distance,
+            gradient,
             device,
             chunks: HashMap::with_capacity(capacity),
             height_cache: HashMap::new(),
@@ -44,7 +52,7 @@ impl Terrain {
             .or_insert_with(|| heightmap(self.seed, x, z))
     }
 
-    fn generate_chunk(&mut self, chunk_x: i32, chunk_y: i32, chunk_z: i32) -> Option<ChunkEx> {
+    fn generate_chunk(&mut self, chunk_x: i32, chunk_y: i32, chunk_z: i32) -> Option<ChunkMesh> {
         let min_x = chunk_x * CHUNK_SIZE as i32;
         let min_z = chunk_z * CHUNK_SIZE as i32;
         let min_y = chunk_y * CHUNK_SIZE as i32;
@@ -90,25 +98,37 @@ impl Terrain {
                     let local_height = (height - min_y) as usize;
 
                     for y in 0..=local_height {
-                        chunk.set(x, y, z, true, ((2 * height) % 128) as u8);
+                        chunk.set(
+                            x,
+                            y,
+                            z,
+                            true,
+                            self.gradient.at((y % 128) as f32 / 128.0).to_rgba8(),
+                        );
                     }
                 } else if height >= min_y + CHUNK_SIZE as i32 {
                     has_voxels = true;
 
                     for y in 0..CHUNK_SIZE {
-                        chunk.set(x, y, z, true, ((2 * height) % 128) as u8);
+                        chunk.set(
+                            x,
+                            y,
+                            z,
+                            true,
+                            self.gradient.at((y % 128) as f32 / 128.0).to_rgba8(),
+                        );
                     }
                 }
             }
         }
 
         if has_voxels {
-            let mut chunk_ex = ChunkEx::new(chunk);
+            let mut chunk_mesh = ChunkMesh::new(chunk);
 
-            chunk_ex.remesh();
-            chunk_ex.allocate(&self.device);
+            chunk_mesh.remesh();
+            chunk_mesh.allocate(&self.device);
 
-            Some(chunk_ex)
+            Some(chunk_mesh)
         } else {
             None
         }
