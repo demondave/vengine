@@ -160,6 +160,8 @@ fn setup(engine: &'static Engine) {
     while !engine.exited() {
         let start = Instant::now();
 
+        let eye = engine.camera().get_eye();
+
         let output = engine
             .renderer()
             .backend()
@@ -207,6 +209,23 @@ fn setup(engine: &'static Engine) {
                         for line in stats.get() {
                             ui.label(
                                 RichText::new(line)
+                                    .color(Color32::WHITE)
+                                    .size(12.0)
+                                    .family(FontFamily::Monospace),
+                            );
+                        }
+                    });
+                });
+            Area::new("coordinates_display".into())
+                .anchor(Align2::RIGHT_TOP, [-10.0, 10.0])
+                .show(ui, |ui| {
+                    Frame::new().fill(Color32::BLACK).show(ui, |ui| {
+                        let labels = ["X", "Y", "Z"];
+                        let coords = [eye.x, eye.y, eye.z];
+
+                        for (label, coord) in labels.iter().zip(coords.iter()) {
+                            ui.label(
+                                RichText::new(format!("{}: {:>9.2}", label, coord))
                                     .color(Color32::WHITE)
                                     .size(12.0)
                                     .family(FontFamily::Monospace),
