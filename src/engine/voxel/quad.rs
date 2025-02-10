@@ -33,10 +33,10 @@ impl Quad {
 
     pub fn direction(&self) -> Direction {
         match (self.low & 0b00000000000111000000000000000000) >> 18 {
-            0 => Direction::Up,
-            1 => Direction::Down,
-            2 => Direction::Left,
-            3 => Direction::Right,
+            0 => Direction::Left,
+            1 => Direction::Right,
+            2 => Direction::Up,
+            3 => Direction::Down,
             4 => Direction::Front,
             5 => Direction::Back,
             _ => panic!("invalid direction"),
