@@ -1,5 +1,5 @@
 use cgmath::{Array, Matrix, Matrix4, Vector3};
-use wgpu::{CommandEncoder, RenderPass, SurfaceTexture};
+use wgpu::{CommandEncoder, RenderPass};
 
 use crate::engine::voxel::object::{ChunkEx, Object};
 
@@ -13,24 +13,17 @@ struct PushConstant {
 }
 
 pub struct Pass<'a> {
-    encoder: *mut CommandEncoder,
+    encoder: CommandEncoder,
     pass: RenderPass<'a>,
     depth: Texture,
-    output: SurfaceTexture,
 }
 
 impl<'a> Pass<'a> {
-    pub fn new(
-        pass: RenderPass<'a>,
-        encoder: *mut CommandEncoder,
-        depth: Texture,
-        output: SurfaceTexture,
-    ) -> Pass<'a> {
+    pub fn new(pass: RenderPass<'a>, encoder: CommandEncoder, depth: Texture) -> Pass<'a> {
         Pass {
             encoder,
             pass,
             depth,
-            output,
         }
     }
 
@@ -89,12 +82,7 @@ impl<'a> Pass<'a> {
         }
     }
 
-    pub fn into_inner(self) -> (Box<CommandEncoder>, RenderPass<'a>, Texture, SurfaceTexture) {
-        (
-            unsafe { Box::from_raw(self.encoder) },
-            self.pass,
-            self.depth,
-            self.output,
-        )
+    pub fn into_inner(self) -> (CommandEncoder, RenderPass<'a>, Texture) {
+        (self.encoder, self.pass, self.depth)
     }
 }

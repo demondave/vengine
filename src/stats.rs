@@ -39,8 +39,13 @@ impl Stats {
         metric.measurements.push_front(value);
     }
 
-    pub fn print(&mut self) {
-        println!("                 | AVG (1000) | AVG (100) |  AVG (10) |    1% LOW |  0.1% LOW |");
+    pub fn get(&mut self) -> Vec<String> {
+        let mut metrics = vec![];
+
+        metrics.push(
+            "                 | AVG (1000) | AVG (100) |  AVG (10) |    1% LOW |  0.1% LOW |"
+                .to_string(),
+        );
         for metric in self.metrics.values_mut() {
             let mut values = metric.measurements.make_contiguous().to_vec();
 
@@ -61,7 +66,7 @@ impl Stats {
                 ),
             };
 
-            println!(
+            metrics.push(format!(
                 "{:<16} | {:>10.3} | {:>9.3} | {:>9.3} | {:>9.3} | {:>9.3} |",
                 format!("{} [{}]", metric.name.clone(), metric.unit.clone()),
                 avg_1000,
@@ -69,7 +74,15 @@ impl Stats {
                 avg_10,
                 low_1,
                 low_0_1
-            )
+            ));
+        }
+
+        metrics
+    }
+
+    pub fn print(&mut self) {
+        for line in self.get() {
+            println!("{}", line);
         }
         println!();
     }

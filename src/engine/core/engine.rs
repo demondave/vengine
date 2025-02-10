@@ -28,7 +28,7 @@ impl<'a> Engine<'a> {
         }
     }
 
-    pub fn renderer(&self) -> &Renderer {
+    pub fn renderer(&self) -> &Renderer<'a> {
         &self.renderer
     }
 
