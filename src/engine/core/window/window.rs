@@ -44,6 +44,11 @@ impl WindowBuilder {
         self
     }
 
+    pub fn set_resizable(mut self, resizable: bool) -> WindowBuilder {
+        self.window_attributes.resizable = resizable;
+        self
+    }
+
     pub fn build(self) -> (impl Future<Output = Window>, impl FnOnce()) {
         let (window_sender, window_receiver) = unbounded();
 

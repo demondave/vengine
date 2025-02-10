@@ -1,4 +1,7 @@
-use std::sync::Mutex;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
+};
 
 use cgmath::Point3;
 use crossbeam::atomic::AtomicCell;
@@ -14,6 +17,8 @@ pub struct Renderer<'a> {
     backend: Backend<'a>,
     // Size (in Pixels)
     size: AtomicCell<(u32, u32)>,
+    // Flag if the surface has been resized
+    resized: AtomicBool,
     // Voxel pipeline
     voxel_pipeline: RenderPipeline,
     // Camera
@@ -61,7 +66,7 @@ impl<'a> Renderer<'a> {
             backend,
             size: AtomicCell::new(size),
             camera,
-
+            resized: AtomicBool::new(false),
             depth_texture: Mutex::new(Some(depth_texture)),
             quad,
             voxel_pipeline,
@@ -148,6 +153,17 @@ impl<'a> Renderer<'a> {
     pub fn resize(&self, width: u32, height: u32) {
         if width > 0 && height > 0 {
             self.size.store((width, height));
+            self.resized.store(true, Ordering::Relaxed);
+        }
+    }
+
+    pub fn dimensions(&self) -> (u32, u32) {
+        self.size.load()
+    }
+
+    pub fn handle_resize(&self) {
+        if self.resized.load(Ordering::Relaxed) {
+            let (width, height) = self.size.load();
             let mut surface_lock = self.backend().surface_configuration().lock().unwrap();
             surface_lock.width = width;
             surface_lock.height = height;
@@ -164,6 +180,7 @@ impl<'a> Renderer<'a> {
                 &surface_lock,
                 "engine::depth_texture",
             ));
+            self.resized.store(false, Ordering::Relaxed);
         }
     }
 }
