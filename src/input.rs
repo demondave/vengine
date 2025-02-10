@@ -181,9 +181,8 @@ impl EventHandler {
                 }
             }
 
-            WindowEvent::Resized(_size) => {
-                // TODO
-                // self.engine.renderer().resize(size.width, size.height);
+            WindowEvent::Resized(size) => {
+                self.engine.renderer().resize(size.width, size.height);
             }
 
             _ => {}

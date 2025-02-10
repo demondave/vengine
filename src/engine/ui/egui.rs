@@ -45,6 +45,7 @@ impl EguiRenderer {
         window: &Window,
         surface_texture: &SurfaceTexture,
         device: &Device,
+        dimensions: (u32, u32),
     ) -> Pass {
         let raw_input = self.state.take_egui_input(window);
         self.state.egui_ctx().begin_pass(raw_input);
@@ -56,7 +57,7 @@ impl EguiRenderer {
             label: Some("ui_encoder"),
         });
 
-        let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
                 resolve_target: None,
@@ -71,6 +72,8 @@ impl EguiRenderer {
             occlusion_query_set: None,
         });
 
+        render_pass.set_viewport(0.0, 0.0, dimensions.0 as f32, dimensions.1 as f32, 0.0, 1.0);
+
         Pass::new(
             render_pass.forget_lifetime(),
             encoder,
@@ -83,6 +86,7 @@ impl EguiRenderer {
         pass: Pass,
         device: &Device,
         queue: &Queue,
+
         screen_descriptor: &ScreenDescriptor,
     ) -> CommandEncoder {
         let (mut encoder, rpass) = pass.finish();
