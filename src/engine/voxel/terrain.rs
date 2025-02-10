@@ -1,10 +1,8 @@
-use super::{
-    chunk::{Chunk, CHUNK_SIZE},
-    object::ChunkEx,
-};
+use crate::engine::core::engine::Engine;
 use crate::engine::physics::simulation::Simulation;
-use crate::engine::voxel::chunk::VOXEL_SIZE;
-use crate::engine::{core::engine::Engine, renderer::pass::Pass};
+use crate::engine::renderer::pass::Pass;
+use crate::engine::voxel::chunk::{Chunk, CHUNK_SIZE, VOXEL_SIZE};
+use crate::engine::voxel::object::ChunkEx;
 use ahash::{HashMap, HashMapExt};
 use cgmath::{Matrix4, SquareMatrix, Vector3};
 use nalgebra::DMatrix;
@@ -14,33 +12,36 @@ use rapier3d::geometry::ColliderBuilder;
 use std::sync::Arc;
 use wgpu::Device;
 
+pub const MAX_STACKED_CHUNKS: usize = 8;
+
 pub struct Terrain {
-    distance: i32,
-    chunks: HashMap<Vector3<i32>, ChunkEx>,
+    seed: u32,
+    distance: u32,
     device: Arc<Device>,
+    chunks: HashMap<Vector3<i32>, ChunkEx>,
     height_cache: HashMap<(i32, i32), usize>,
-    height_bounds_cache: HashMap<(i32, i32), (i32, i32)>, // Add this
+    height_bounds_cache: HashMap<(i32, i32), (i32, i32)>,
 }
 
 impl Terrain {
-    pub fn new(distance: i32, device: Arc<Device>) -> Terrain {
+    pub fn new(seed: u32, distance: u32, device: Arc<Device>) -> Terrain {
+        let capacity = (distance * 2).pow(2) as usize;
+
         Terrain {
+            seed,
             distance,
-            chunks: HashMap::with_capacity((distance * 2 * distance * 2) as usize),
             device,
+            chunks: HashMap::with_capacity(capacity),
             height_cache: HashMap::new(),
-            height_bounds_cache: HashMap::with_capacity((distance * 2 * distance * 2) as usize),
+            height_bounds_cache: HashMap::with_capacity(capacity),
         }
     }
 
     fn get_cached_height(&mut self, x: i32, z: i32) -> usize {
-        if let Some(&height) = self.height_cache.get(&(x, z)) {
-            height
-        } else {
-            let height = heightmap(x, z);
-            self.height_cache.insert((x, z), height);
-            height
-        }
+        *self
+            .height_cache
+            .entry((x, z))
+            .or_insert_with(|| heightmap(self.seed, x, z))
     }
 
     fn generate_chunk(&mut self, chunk_x: i32, chunk_y: i32, chunk_z: i32) -> Option<ChunkEx> {
@@ -49,6 +50,7 @@ impl Terrain {
         let min_y = chunk_y * CHUNK_SIZE as i32;
 
         let bounds_key = (chunk_x, chunk_z);
+
         let (min_height, max_height) =
             if let Some(&bounds) = self.height_bounds_cache.get(&bounds_key) {
                 bounds
@@ -59,6 +61,7 @@ impl Terrain {
                 for dx in (0..CHUNK_SIZE as i32).step_by(4) {
                     for dz in (0..CHUNK_SIZE as i32).step_by(4) {
                         let h = self.get_cached_height(min_x + dx, min_z + dz) as i32;
+
                         min_height = min_height.min(h);
                         max_height = max_height.max(h);
                     }
@@ -66,6 +69,7 @@ impl Terrain {
 
                 self.height_bounds_cache
                     .insert(bounds_key, (min_height, max_height));
+
                 (min_height, max_height)
             };
 
@@ -74,32 +78,36 @@ impl Terrain {
         }
 
         let mut chunk = Chunk::empty();
-        let mut has_blocks = false;
+        let mut has_voxels = false;
 
         for z in 0..CHUNK_SIZE {
             for x in 0..CHUNK_SIZE {
-                let height = self.get_cached_height(min_x + x as i32, min_z + z as i32);
-                let absolute_height = height as i32;
+                let height = self.get_cached_height(min_x + x as i32, min_z + z as i32) as i32;
 
-                if absolute_height >= min_y && absolute_height < min_y + CHUNK_SIZE as i32 {
-                    has_blocks = true;
-                    let local_height = (absolute_height - min_y) as usize;
+                if height >= min_y && height < min_y + CHUNK_SIZE as i32 {
+                    has_voxels = true;
+
+                    let local_height = (height - min_y) as usize;
+
                     for y in 0..=local_height {
-                        chunk.set(x, y, z, true, ((2 * absolute_height) % 128) as u8);
+                        chunk.set(x, y, z, true, ((2 * height) % 128) as u8);
                     }
-                } else if absolute_height >= min_y + CHUNK_SIZE as i32 {
-                    has_blocks = true;
+                } else if height >= min_y + CHUNK_SIZE as i32 {
+                    has_voxels = true;
+
                     for y in 0..CHUNK_SIZE {
-                        chunk.set(x, y, z, true, ((2 * absolute_height) % 128) as u8);
+                        chunk.set(x, y, z, true, ((2 * height) % 128) as u8);
                     }
                 }
             }
         }
 
-        if has_blocks {
+        if has_voxels {
             let mut chunk_ex = ChunkEx::new(chunk);
+
             chunk_ex.remesh();
             chunk_ex.allocate(&self.device);
+
             Some(chunk_ex)
         } else {
             None
@@ -113,9 +121,11 @@ impl Terrain {
         let eye_y = eye.y as i32 / CHUNK_SIZE as i32;
         let eye_z = eye.z as i32 / CHUNK_SIZE as i32;
 
-        for y in (eye_y - self.distance)..(eye_y + self.distance) {
-            for z in (eye_z - self.distance)..(eye_z + self.distance) {
-                for x in (eye_x - self.distance)..(eye_x + self.distance) {
+        let distance = self.distance as i32;
+
+        for x in (eye_x - distance)..(eye_x + distance) {
+            for y in (eye_y - distance)..(eye_y + distance) {
+                for z in (eye_z - distance)..(eye_z + distance) {
                     let chunk_pos = Vector3::new(x, y, z);
 
                     match self.chunks.get(&chunk_pos) {
@@ -170,10 +180,10 @@ impl Terrain {
         }
     }
 }
-pub const MAX_HEIGHT_CHUNKS: usize = 8; // 256 blocks total height (8 * 32)
-fn heightmap(x: i32, z: i32) -> usize {
-    let seed = 69;
+
+fn heightmap(seed: u32, x: i32, z: i32) -> usize {
     let perlin = Perlin::new(seed);
+
     const SCALE: f64 = 0.01;
     const HEIGHT_MULTIPLIER: f64 = 25.0;
     const OCTAVES: u32 = 4;
@@ -183,7 +193,6 @@ fn heightmap(x: i32, z: i32) -> usize {
     let mut frequency = 1.0;
     let mut height = 0.0;
 
-    // Sum multiple octaves of noise
     for _ in 0..OCTAVES {
         height +=
             perlin.get([x as f64 * SCALE * frequency, z as f64 * SCALE * frequency]) * amplitude;
@@ -192,7 +201,7 @@ fn heightmap(x: i32, z: i32) -> usize {
         frequency *= 2.0;
     }
 
-    // Normalize and scale
     let height = (height + 1.0) * HEIGHT_MULTIPLIER;
-    height.clamp(0.0, (MAX_HEIGHT_CHUNKS * CHUNK_SIZE - 1) as f64) as usize
+
+    height.clamp(0.0, (MAX_STACKED_CHUNKS * CHUNK_SIZE - 1) as f64) as usize
 }

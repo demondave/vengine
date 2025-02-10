@@ -27,6 +27,8 @@ pub mod input;
 pub mod stats;
 pub mod util;
 
+pub const TERRAIN_RENDER_DISTANCE: u32 = 12;
+
 pub fn main() {
     env_logger::init();
 
@@ -121,7 +123,8 @@ fn setup(engine: &'static Engine) {
         cubes.push((cube, cube_handle));
     }
 
-    let mut terrain = Terrain::new(12, engine.device().clone());
+    let seed: u32 = rng.random();
+    let mut terrain = Terrain::new(seed, TERRAIN_RENDER_DISTANCE, engine.device().clone());
 
     // Render object
     let mut stats = Stats::default();
