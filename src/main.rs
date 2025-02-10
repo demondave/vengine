@@ -5,6 +5,7 @@ use crate::engine::voxel::chunk::VOXEL_SIZE;
 use crate::engine::voxel::object::Object;
 use crate::engine::voxel::terrain::Terrain;
 use cgmath::{Matrix4, Point3, Quaternion, Vector3};
+use colorgrad::preset::turbo;
 use egui::{Align2, Area, Color32, FontFamily, Frame, RichText};
 use egui_wgpu::ScreenDescriptor;
 use engine::{
@@ -141,7 +142,12 @@ fn setup(engine: &'static Engine) {
     }
 
     let seed: u32 = rng.random();
-    let mut terrain = Terrain::new(seed, TERRAIN_RENDER_DISTANCE, engine.device().clone());
+    let mut terrain = Terrain::new(
+        seed,
+        TERRAIN_RENDER_DISTANCE,
+        Box::new(turbo()),
+        engine.device().clone(),
+    );
 
     // Render object
     let mut stats = Stats::default();

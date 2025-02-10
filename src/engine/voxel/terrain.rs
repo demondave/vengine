@@ -2,22 +2,23 @@ use crate::engine::core::engine::Engine;
 use crate::engine::physics::simulation::Simulation;
 use crate::engine::renderer::pass::Pass;
 use crate::engine::voxel::chunk::{Chunk, CHUNK_SIZE, VOXEL_SIZE};
-use crate::engine::voxel::object::ChunkMesh;
+use crate::engine::voxel::chunk_mesh::ChunkMesh;
 use ahash::{HashMap, HashMapExt};
 use cgmath::{Matrix4, SquareMatrix, Vector3};
+use colorgrad::Gradient;
 use nalgebra::DMatrix;
 use noise::{NoiseFn, Perlin};
 use rapier3d::dynamics::RigidBodyBuilder;
 use rapier3d::geometry::ColliderBuilder;
 use std::sync::Arc;
 use wgpu::Device;
-use crate::engine::voxel::chunk_mesh::ChunkMesh;
 
 pub const MAX_STACKED_CHUNKS: usize = 8;
 
 pub struct Terrain {
     seed: u32,
     distance: u32,
+    gradient: Box<dyn Gradient>,
     device: Arc<Device>,
     chunks: HashMap<Vector3<i32>, ChunkMesh>,
     height_cache: HashMap<(i32, i32), usize>,
@@ -25,12 +26,18 @@ pub struct Terrain {
 }
 
 impl Terrain {
-    pub fn new(seed: u32, distance: u32, device: Arc<Device>) -> Terrain {
+    pub fn new(
+        seed: u32,
+        distance: u32,
+        gradient: Box<dyn Gradient>,
+        device: Arc<Device>,
+    ) -> Terrain {
         let capacity = (distance * 2).pow(2) as usize;
 
         Terrain {
             seed,
             distance,
+            gradient,
             device,
             chunks: HashMap::with_capacity(capacity),
             height_cache: HashMap::new(),
@@ -91,13 +98,25 @@ impl Terrain {
                     let local_height = (height - min_y) as usize;
 
                     for y in 0..=local_height {
-                        chunk.set(x, y, z, true, [255u8; 4]);
+                        chunk.set(
+                            x,
+                            y,
+                            z,
+                            true,
+                            self.gradient.at((y % 128) as f32 / 128.0).to_rgba8(),
+                        );
                     }
                 } else if height >= min_y + CHUNK_SIZE as i32 {
                     has_voxels = true;
 
                     for y in 0..CHUNK_SIZE {
-                        chunk.set(x, y, z, true, [255u8; 4]);
+                        chunk.set(
+                            x,
+                            y,
+                            z,
+                            true,
+                            self.gradient.at((y % 128) as f32 / 128.0).to_rgba8(),
+                        );
                     }
                 }
             }
