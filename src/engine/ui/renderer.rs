@@ -66,6 +66,7 @@ impl<'a> UiRenderer<'a> {
         window: &Window,
         surface_texture: &SurfaceTexture,
         device: &Device,
+        dimensions: (u32, u32),
     ) -> Pass {
         let mut state = self.state.lock().unwrap();
 
@@ -79,7 +80,7 @@ impl<'a> UiRenderer<'a> {
             label: Some("ui_encoder"),
         });
 
-        let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
                 resolve_target: None,
@@ -93,6 +94,8 @@ impl<'a> UiRenderer<'a> {
             label: Some("ui render pass"),
             occlusion_query_set: None,
         });
+
+        render_pass.set_viewport(0.0, 0.0, dimensions.0 as f32, dimensions.1 as f32, 0.0, 1.0);
 
         Pass::new(
             render_pass.forget_lifetime(),

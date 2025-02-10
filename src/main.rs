@@ -174,6 +174,11 @@ fn setup(engine: &'static Engine) {
     let mut last = Instant::now();
 
     while !engine.exited() {
+        // Handle resizes befor rendering
+        engine.renderer().handle_resize();
+
+        let dimensions = engine.renderer().dimensions();
+
         let start = Instant::now();
 
         let eye = engine.camera().get_eye();
@@ -190,6 +195,7 @@ fn setup(engine: &'static Engine) {
             engine.window().window(),
             &output,
             engine.device(),
+            dimensions,
         );
 
         terrain.render(engine, &mut engine_pass, &mut simulation);
@@ -256,15 +262,17 @@ fn setup(engine: &'static Engine) {
 
         ui_pass.render_static_uis();
 
+        let screen_descriptor = ScreenDescriptor {
+            size_in_pixels: [dimensions.0, dimensions.1],
+            pixels_per_point: engine.window().window().scale_factor() as f32,
+        };
+
         let engine_encoder = engine.renderer().finish_render_pass(engine_pass);
         let ui_encoder = engine.ui_renderer().finish_render_pass(
             ui_pass,
             engine.device(),
             engine.renderer().backend().queue(),
-            &ScreenDescriptor {
-                size_in_pixels: [engine.window().dimension().0, engine.window().dimension().1],
-                pixels_per_point: engine.window().window().scale_factor() as f32,
-            },
+            &screen_descriptor,
         );
 
         engine
