@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use cgmath::Point3;
 use crossbeam::atomic::AtomicCell;
-use wgpu::{util::DeviceExt, Buffer, RenderPipeline};
+use wgpu::{util::DeviceExt, Buffer, CommandEncoder, RenderPipeline, SurfaceTexture};
 
 use super::{
     backend::Backend, camera::Camera, pass::Pass, pipeline::voxels::voxel_pipeline,
@@ -68,20 +68,20 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    pub fn start_render_pass(&self) -> Result<Pass, wgpu::SurfaceError> {
-        let output = self.backend().surface().get_current_texture()?;
-
-        let view = output
+    pub fn start_render_pass(
+        &self,
+        surface_texture: &SurfaceTexture,
+    ) -> Result<Pass, wgpu::SurfaceError> {
+        let view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let encoder = Box::new(self.backend().device().create_command_encoder(
-            &wgpu::CommandEncoderDescriptor {
-                label: Some("vengine::render_encoder"),
-            },
-        ));
-
-        let encoder = Box::into_raw(encoder);
+        let mut encoder =
+            self.backend()
+                .device()
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("vengine::render_encoder"),
+                });
 
         let depth = self
             .depth_texture
@@ -90,33 +90,32 @@ impl<'a> Renderer<'a> {
             .take()
             .expect("depth texture was already taken, did you finish the render pass");
 
-        let mut render_pass =
-            unsafe { &mut *encoder }.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.1,
+                        g: 0.2,
+                        b: 0.3,
+                        a: 1.0,
                     }),
-                    stencil_ops: None,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &depth.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
                 }),
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
+                stencil_ops: None,
+            }),
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
 
         render_pass.set_pipeline(&self.voxel_pipeline);
         render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
@@ -124,22 +123,18 @@ impl<'a> Renderer<'a> {
         // Quad buffer (bleibt für alle Chunks gleich)
         render_pass.set_vertex_buffer(0, self.quad.slice(..));
 
-        Ok(Pass::new(self, render_pass, encoder, depth, output))
+        Ok(Pass::new(render_pass.forget_lifetime(), encoder, depth))
     }
 
-    pub fn finish_render_pass(&self, pass: Pass) {
-        let (encoder, pass, depth, output) = pass.into_inner();
+    pub fn finish_render_pass(&self, pass: Pass) -> CommandEncoder {
+        let (encoder, pass, depth) = pass.into_inner();
 
         drop(pass);
 
-        self.backend()
-            .queue()
-            .submit(std::iter::once(encoder.finish()));
-
-        output.present();
-
         let mut lock = self.depth_texture.lock().unwrap();
         *lock = Some(depth);
+
+        encoder
     }
 
     pub fn backend(&self) -> &Backend {
