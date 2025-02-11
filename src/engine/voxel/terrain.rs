@@ -259,6 +259,7 @@ fn heightmap(seed: u32, x: i32, z: i32) -> usize {
     height.clamp(0.0, (MAX_STACKED_CHUNKS * CHUNK_SIZE - 1) as f64) as usize
 }
 
+#[allow(clippy::too_many_arguments)]
 fn calculate_noise(
     x: i32,
     y: i32,
