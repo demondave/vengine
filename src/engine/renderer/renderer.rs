@@ -1,32 +1,29 @@
+use super::{backend::Backend, camera::Camera, pipeline::voxels::voxel_pipeline, texture::Texture};
+use cgmath::Point3;
+use crossbeam::atomic::AtomicCell;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex,
 };
-
-use cgmath::Point3;
-use crossbeam::atomic::AtomicCell;
-use wgpu::{util::DeviceExt, Buffer, CommandEncoder, RenderPipeline, SurfaceTexture};
-
-use super::{
-    backend::Backend, camera::Camera, pass::Pass, pipeline::voxels::voxel_pipeline,
-    texture::Texture,
-};
+use wgpu::{util::DeviceExt, Buffer, RenderPipeline};
 
 pub struct Renderer<'a> {
     // Backend
     backend: Backend<'a>,
-    // Size (in Pixels)
-    size: AtomicCell<(u32, u32)>,
+    // Current size (in Pixels)
+    current_size: AtomicCell<(u32, u32)>,
+    // New size (in Pixels)
+    new_size: AtomicCell<(u32, u32)>,
     // Flag if the surface has been resized
     resized: AtomicBool,
     // Voxel pipeline
-    voxel_pipeline: RenderPipeline,
+    pub voxel_pipeline: RenderPipeline,
     // Camera
     camera: Camera,
     // Depth texture
-    depth_texture: Mutex<Option<Texture>>,
+    pub depth_texture: Mutex<Texture>,
     // Quad
-    quad: Buffer,
+    pub quad: Buffer,
 }
 
 impl<'a> Renderer<'a> {
@@ -64,82 +61,14 @@ impl<'a> Renderer<'a> {
 
         Self {
             backend,
-            size: AtomicCell::new(size),
+            current_size: AtomicCell::new(size),
+            new_size: AtomicCell::new((0, 0)),
             camera,
             resized: AtomicBool::new(false),
-            depth_texture: Mutex::new(Some(depth_texture)),
+            depth_texture: Mutex::new(depth_texture),
             quad,
             voxel_pipeline,
         }
-    }
-
-    pub fn start_render_pass(
-        &self,
-        surface_texture: &SurfaceTexture,
-    ) -> Result<Pass, wgpu::SurfaceError> {
-        let view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder =
-            self.backend()
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("vengine::render_encoder"),
-                });
-
-        let depth = self
-            .depth_texture
-            .lock()
-            .unwrap()
-            .take()
-            .expect("depth texture was already taken, did you finish the render pass");
-
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
-                        a: 1.0,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &depth.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
-            occlusion_query_set: None,
-            timestamp_writes: None,
-        });
-
-        render_pass.set_pipeline(&self.voxel_pipeline);
-        render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
-
-        // Quad buffer (bleibt für alle Chunks gleich)
-        render_pass.set_vertex_buffer(0, self.quad.slice(..));
-
-        Ok(Pass::new(render_pass.forget_lifetime(), encoder, depth))
-    }
-
-    pub fn finish_render_pass(&self, pass: Pass) -> CommandEncoder {
-        let (encoder, pass, depth) = pass.into_inner();
-
-        drop(pass);
-
-        let mut lock = self.depth_texture.lock().unwrap();
-        *lock = Some(depth);
-
-        encoder
     }
 
     pub fn backend(&self) -> &Backend {
@@ -152,18 +81,18 @@ impl<'a> Renderer<'a> {
 
     pub fn resize(&self, width: u32, height: u32) {
         if width > 0 && height > 0 {
-            self.size.store((width, height));
+            self.new_size.store((width, height));
             self.resized.store(true, Ordering::Relaxed);
         }
     }
 
     pub fn dimensions(&self) -> (u32, u32) {
-        self.size.load()
+        self.current_size.load()
     }
 
     pub fn handle_resize(&self) {
         if self.resized.load(Ordering::Relaxed) {
-            let (width, height) = self.size.load();
+            let (width, height) = self.new_size.load();
             let mut surface_lock = self.backend().surface_configuration().lock().unwrap();
             surface_lock.width = width;
             surface_lock.height = height;
@@ -175,11 +104,12 @@ impl<'a> Renderer<'a> {
 
             let mut texture_lock = self.depth_texture.lock().unwrap();
 
-            *texture_lock = Some(Texture::create_depth_texture(
+            *texture_lock = Texture::create_depth_texture(
                 self.backend().device(),
                 &surface_lock,
                 "engine::depth_texture",
-            ));
+            );
+            self.current_size.store((width, height));
             self.resized.store(false, Ordering::Relaxed);
         }
     }

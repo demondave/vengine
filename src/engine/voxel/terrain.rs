@@ -1,6 +1,6 @@
 use crate::engine::core::engine::Engine;
 use crate::engine::physics::simulation::Simulation;
-use crate::engine::renderer::pass::Pass;
+use crate::engine::renderer::frame::voxel_pass::VoxelPass;
 use crate::engine::voxel::chunk::{Chunk, CHUNK_SIZE, VOXEL_SIZE};
 use crate::engine::voxel::chunk_mesh::ChunkMesh;
 use ahash::{HashMap, HashMapExt, HashSet, HashSetExt};
@@ -60,7 +60,7 @@ impl Terrain {
         }
     }
 
-    pub fn render(&mut self, engine: &Engine, pass: &mut Pass, simulation: &mut Simulation) {
+    pub fn render(&mut self, engine: &Engine, pass: &mut VoxelPass, simulation: &mut Simulation) {
         let eye = engine.camera().get_eye();
 
         self.eye_sender.send(eye.to_vec()).unwrap();
