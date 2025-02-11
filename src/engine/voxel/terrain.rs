@@ -204,24 +204,36 @@ impl Terrain {
 fn heightmap(seed: u32, x: i32, z: i32) -> usize {
     let perlin = Perlin::new(seed);
 
-    const SCALE: f64 = 0.01;
-    const HEIGHT_MULTIPLIER: f64 = 25.0;
+    const SCALE: f64 = 0.001;
+    const HEIGHT_MULTIPLIER: f64 = 100.0;
     const OCTAVES: u32 = 4;
     const PERSISTENCE: f64 = 0.5;
+    const DETAIL_SCALE: f64 = 2.0;
 
     let mut amplitude = 1.0;
-    let mut frequency = 1.0;
+    let mut frequency = 3.0;
     let mut height = 0.0;
+
+    let flatness = perlin.get([x as f64 * 0.001, z as f64 * 0.001]);
 
     for _ in 0..OCTAVES {
         height +=
             perlin.get([x as f64 * SCALE * frequency, z as f64 * SCALE * frequency]) * amplitude;
 
+        let weirdness = perlin.get([x as f64 * SCALE * frequency, z as f64 * SCALE * frequency]);
+
+        let pv = 1.0 - (3.0 * weirdness.abs() - 2.0).abs();
+
+        height += pv * amplitude * (flatness*1.2);
+
         amplitude *= PERSISTENCE;
         frequency *= 2.0;
     }
 
-    let height = (height + 1.0) * HEIGHT_MULTIPLIER;
+    let continental = perlin.get([x as f64 * 0.0001, z as f64 * 0.0001]);
+    let detail = perlin.get([x as f64 * 0.09, z as f64 * 0.09]);
+
+    let height = ((height + 1.0) * (HEIGHT_MULTIPLIER * continental) + (detail * DETAIL_SCALE))* flatness;
 
     height.clamp(0.0, (MAX_STACKED_CHUNKS * CHUNK_SIZE - 1) as f64) as usize
 }
