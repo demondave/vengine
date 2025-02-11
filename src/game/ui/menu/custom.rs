@@ -82,6 +82,7 @@ impl Scene for CustomMenu {
                                             voxels,
                                         );
 
+                                        game.pop_scene();
                                         game.push_scene(Box::new(CustomLevel::new(object)));
                                     } else {
                                         println!("'{}' doesn't exist", path.display());

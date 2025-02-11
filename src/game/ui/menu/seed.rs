@@ -74,6 +74,7 @@ impl<T: Scene + SeededLevel> Scene for SeedMenu<T> {
                                     .clicked()
                                 {
                                     if let Ok(seed) = self.buffer.parse::<u32>() {
+                                        game.pop_scene();
                                         game.push_scene(Box::new(T::with_seed(seed)))
                                     }
                                 }
