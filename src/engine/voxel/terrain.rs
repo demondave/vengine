@@ -17,6 +17,7 @@ use wgpu::Device;
 
 pub const MAX_STACKED_CHUNKS: usize = 8;
 
+#[allow(clippy::type_complexity)]
 pub struct Terrain {
     distance: u32,
     eye_sender: Sender<Vector3<f32>>,
@@ -128,6 +129,7 @@ impl Terrain {
     }
 }
 
+#[allow(clippy::type_complexity)]
 struct Generator {
     seed: u32,
     distance: u32,
@@ -164,6 +166,7 @@ impl Generator {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn generate_chunk(
         &mut self,
         chunk_pos: Vector3<i32>,
