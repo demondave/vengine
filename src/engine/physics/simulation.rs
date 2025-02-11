@@ -79,4 +79,15 @@ impl Simulation {
     pub fn rigid_body_set(&self) -> &RigidBodySet {
         &self.rigid_body_set
     }
+
+    pub fn remove_rigid_body(&mut self, handle: RigidBodyHandle) {
+        self.rigid_body_set.remove(
+            handle,
+            &mut self.island_manager,
+            &mut self.collider_set,
+            &mut self.impulse_joint_set,
+            &mut self.multibody_joint_set,
+            true,
+        );
+    }
 }
