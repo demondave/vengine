@@ -5,7 +5,7 @@ use std::future::Future;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
-use winit::window::WindowAttributes;
+use winit::window::{CursorGrabMode, WindowAttributes};
 use winit::{
     event::Event,
     event_loop::{EventLoop, EventLoopProxy},
@@ -103,5 +103,16 @@ impl Window {
 
     pub fn exit(&self) {
         self.event_proxy.send_event(UserEvent::Exit).unwrap();
+    }
+
+    pub fn set_grab(&self, grab: bool) {
+        if grab {
+            self.window
+                .set_cursor_grab(CursorGrabMode::Confined)
+                .or_else(|_| self.window.set_cursor_grab(CursorGrabMode::Locked))
+                .unwrap();
+        } else {
+            self.window.set_cursor_grab(CursorGrabMode::None).unwrap();
+        }
     }
 }

@@ -1,6 +1,7 @@
 use crate::engine::core::engine::Engine;
 use cgmath::{Deg, InnerSpace, Matrix3, Vector3, Zero};
 use core::f32;
+use crossbeam::{atomic::AtomicCell, channel::Sender};
 use std::{
     collections::HashMap,
     thread::sleep,
@@ -17,13 +18,25 @@ const X_SENSITIVITY: f32 = -0.01;
 const Y_SENSITIVITY: f32 = -0.01;
 const TICKS: f64 = 64.0;
 
+#[derive(Clone, Copy)]
+pub enum InputHandler {
+    Game,
+    Gui,
+}
+
 pub struct EventHandler {
     engine: &'static Engine<'static>,
+    handler: &'static AtomicCell<InputHandler>,
     keymap: HashMap<KeyCode, bool>,
+    events: Sender<WindowEvent>,
 }
 
 impl EventHandler {
-    pub fn new(engine: &'static Engine) -> Self {
+    pub fn new(
+        engine: &'static Engine,
+        handler: &'static AtomicCell<InputHandler>,
+        sender: Sender<WindowEvent>,
+    ) -> Self {
         let keys = &[
             KeyCode::KeyW,
             KeyCode::KeyA,
@@ -36,7 +49,9 @@ impl EventHandler {
 
         Self {
             engine,
+            handler,
             keymap: HashMap::from_iter(keys.iter().map(|k| (*k, false))),
+            events: sender,
         }
     }
 
@@ -164,48 +179,51 @@ impl EventHandler {
     }
 
     pub fn handle_window_event(&mut self, event: WindowEvent) {
-        /*
-        self.engine
-            .ui_renderer()
-            .handle_input(self.engine.window().window(), &event);
-        */
-
         match event {
             WindowEvent::CloseRequested => {
                 self.engine.exit();
             }
-            WindowEvent::KeyboardInput {
-                device_id: _,
-                event,
-                is_synthetic: _,
-            } => {
-                /*
-                if let PhysicalKey::Code(KeyCode::Escape) = event.physical_key {
-                    if !event.state.is_pressed() {
-                        self.on_escape();
-                    }
-                    return;
-                }
-
-
-                // option menu is open
-                if self.options_ui_guard.is_some() {
-                    return;
-                }
-                */
-
-                if let PhysicalKey::Code(code) = event.physical_key {
-                    if let Some(state) = self.keymap.get_mut(&code) {
-                        *state = event.state.is_pressed();
-                    }
-                }
-            }
-
             WindowEvent::Resized(size) => {
                 self.engine.renderer().resize(size.width, size.height);
             }
-
             _ => {}
+        }
+
+        self.events.send(event.clone()).unwrap();
+
+        if matches!(self.handler.load(), InputHandler::Gui) {
+            self.engine
+                .ui_renderer()
+                .handle_window_event(self.engine.window().window(), &event);
+            return;
+        }
+
+        if let WindowEvent::KeyboardInput {
+            device_id: _,
+            event,
+            is_synthetic: _,
+        } = event
+        {
+            /*
+            if let PhysicalKey::Code(KeyCode::Escape) = event.physical_key {
+                if !event.state.is_pressed() {
+                    self.on_escape();
+                }
+                return;
+            }
+
+
+            // option menu is open
+            if self.options_ui_guard.is_some() {
+                return;
+            }
+            */
+
+            if let PhysicalKey::Code(code) = event.physical_key {
+                if let Some(state) = self.keymap.get_mut(&code) {
+                    *state = event.state.is_pressed();
+                }
+            }
         }
     }
 

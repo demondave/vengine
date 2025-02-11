@@ -3,7 +3,7 @@ use egui::{Context, ViewportId};
 use egui_wgpu::Renderer;
 use egui_winit::State;
 use std::sync::{Mutex, MutexGuard};
-use winit::window::Window;
+use winit::{event::WindowEvent, window::Window};
 
 pub struct UiRenderer {
     state: Mutex<State>,
@@ -48,5 +48,9 @@ impl UiRenderer {
 
     pub fn context(&self) -> &Context {
         &self.context
+    }
+
+    pub fn handle_window_event(&self, window: &Window, event: &WindowEvent) {
+        let _ = self.state().on_window_event(window, event);
     }
 }
