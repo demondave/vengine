@@ -2,8 +2,6 @@ use crate::engine::voxel::{chunk_mesh::ChunkMesh, object::Object};
 use cgmath::{Array, Matrix, Matrix4, Vector3};
 use wgpu::{CommandEncoder, RenderPass};
 
-use super::texture::Texture;
-
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct PushConstant {
@@ -11,19 +9,14 @@ struct PushConstant {
     offset: [i32; 3],
 }
 
-pub struct Pass<'a> {
+pub struct VoxelPass<'a> {
     encoder: CommandEncoder,
     pass: RenderPass<'a>,
-    depth: Texture,
 }
 
-impl<'a> Pass<'a> {
-    pub fn new(pass: RenderPass<'a>, encoder: CommandEncoder, depth: Texture) -> Pass<'a> {
-        Pass {
-            encoder,
-            pass,
-            depth,
-        }
+impl<'a> VoxelPass<'a> {
+    pub fn new(pass: RenderPass<'a>, encoder: CommandEncoder) -> VoxelPass<'a> {
+        VoxelPass { encoder, pass }
     }
 
     pub fn render_object(&mut self, object: &Object) {
@@ -117,7 +110,7 @@ impl<'a> Pass<'a> {
         }
     }
 
-    pub fn into_inner(self) -> (CommandEncoder, RenderPass<'a>, Texture) {
-        (self.encoder, self.pass, self.depth)
+    pub fn into_inner(self) -> (CommandEncoder, RenderPass<'a>) {
+        (self.encoder, self.pass)
     }
 }
