@@ -87,35 +87,37 @@ impl Terrain {
 
         let mut chunk = Chunk::empty();
         let mut has_voxels = false;
-
+        let perlin = Perlin::new(self.seed);
         for z in 0..CHUNK_SIZE {
             for x in 0..CHUNK_SIZE {
                 let height = self.get_cached_height(min_x + x as i32, min_z + z as i32) as i32;
 
+                const NOISE_INTENSITY: f64 = 3.0;
                 if height >= min_y && height < min_y + CHUNK_SIZE as i32 {
                     has_voxels = true;
 
                     let local_height = (height - min_y) as usize;
 
                     for y in 0..=local_height {
+                        let noise_y = calculate_noise(x as i32, y as i32, z as i32, min_x, min_y, min_z, NOISE_INTENSITY, &perlin);
                         chunk.set(
                             x,
                             y,
                             z,
                             true,
-                            self.gradient.at((y % 128) as f32 / 128.0).to_rgba8(),
+                            self.gradient.at((noise_y / 256.0) as f32).to_rgba8(),
                         );
                     }
                 } else if height >= min_y + CHUNK_SIZE as i32 {
                     has_voxels = true;
-
                     for y in 0..CHUNK_SIZE {
+                        let noise_y = calculate_noise(x as i32, y as i32, z as i32, min_x, min_y, min_z, NOISE_INTENSITY, &perlin);
                         chunk.set(
                             x,
                             y,
                             z,
                             true,
-                            self.gradient.at((y % 128) as f32 / 128.0).to_rgba8(),
+                            self.gradient.at((noise_y / 256.0) as f32).to_rgba8(),
                         );
                     }
                 }
@@ -236,4 +238,28 @@ fn heightmap(seed: u32, x: i32, z: i32) -> usize {
     let height = ((height + 1.0) * (HEIGHT_MULTIPLIER * continental) + (detail * DETAIL_SCALE))* flatness;
 
     height.clamp(0.0, (MAX_STACKED_CHUNKS * CHUNK_SIZE - 1) as f64) as usize
+}
+
+fn calculate_noise(
+    x: i32,
+    y: i32,
+    z: i32,
+    min_x: i32,
+    min_y: i32,
+    min_z: i32,
+    noise_intensity: f64,
+    perlin: &Perlin,
+) -> f64 {
+    let noise_y = min_y as f64 + y as f64;
+    let height_difference = noise_y / 30.0;
+
+    if noise_y >= 32.0 + noise_intensity * height_difference {
+        noise_y + perlin.get([
+            (min_x + x) as f64 * 0.1,
+            (min_y + y) as f64 * 0.1,
+            (min_z + z) as f64 * 0.1,
+        ]) * noise_intensity * height_difference
+    } else {
+        noise_y
+    }
 }
