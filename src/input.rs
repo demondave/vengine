@@ -1,14 +1,11 @@
 use crate::engine::core::engine::Engine;
-use crate::engine::ui::renderer::StaticUiGuard;
 use cgmath::{Deg, InnerSpace, Matrix3, Vector3, Zero};
 use core::f32;
-use egui::{Color32, RichText, Sense};
 use std::{
     collections::HashMap,
     thread::sleep,
     time::{Duration, Instant},
 };
-use winit::window::CursorGrabMode;
 use winit::{
     event::{DeviceEvent, Event, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
@@ -23,8 +20,6 @@ const TICKS: f64 = 64.0;
 pub struct EventHandler {
     engine: &'static Engine<'static>,
     keymap: HashMap<KeyCode, bool>,
-
-    options_ui_guard: Option<StaticUiGuard<'static>>,
 }
 
 impl EventHandler {
@@ -42,7 +37,6 @@ impl EventHandler {
         Self {
             engine,
             keymap: HashMap::from_iter(keys.iter().map(|k| (*k, false))),
-            options_ui_guard: None,
         }
     }
 
@@ -137,11 +131,6 @@ impl EventHandler {
     }
 
     pub fn handle_device_event(&mut self, event: DeviceEvent) {
-        // option menu is open
-        if self.options_ui_guard.is_some() {
-            return;
-        }
-
         if let DeviceEvent::MouseMotion {
             delta: (delta_x, delta_y),
         } = event
@@ -175,9 +164,11 @@ impl EventHandler {
     }
 
     pub fn handle_window_event(&mut self, event: WindowEvent) {
+        /*
         self.engine
             .ui_renderer()
             .handle_input(self.engine.window().window(), &event);
+        */
 
         match event {
             WindowEvent::CloseRequested => {
@@ -188,6 +179,7 @@ impl EventHandler {
                 event,
                 is_synthetic: _,
             } => {
+                /*
                 if let PhysicalKey::Code(KeyCode::Escape) = event.physical_key {
                     if !event.state.is_pressed() {
                         self.on_escape();
@@ -195,10 +187,12 @@ impl EventHandler {
                     return;
                 }
 
+
                 // option menu is open
                 if self.options_ui_guard.is_some() {
                     return;
                 }
+                */
 
                 if let PhysicalKey::Code(code) = event.physical_key {
                     if let Some(state) = self.keymap.get_mut(&code) {
@@ -215,6 +209,7 @@ impl EventHandler {
         }
     }
 
+    /*
     fn on_escape(&mut self) {
         let window = self.engine.window().window();
 
@@ -260,4 +255,5 @@ impl EventHandler {
                 });
         }))
     }
+    */
 }

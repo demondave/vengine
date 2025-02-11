@@ -1,26 +1,25 @@
 use egui::Context;
 use wgpu::{CommandEncoder, RenderPass};
 
-pub struct Pass {
+pub struct UiPass {
     encoder: CommandEncoder,
     pass: RenderPass<'static>,
-
     context: Context,
-
-    static_uis: bool,
+    dimensions: (u32, u32),
 }
 
-impl Pass {
+impl UiPass {
     pub(super) fn new(
         pass: RenderPass<'static>,
         encoder: CommandEncoder,
         context: Context,
+        dimensions: (u32, u32),
     ) -> Self {
         Self {
             encoder,
             pass,
             context,
-            static_uis: false,
+            dimensions,
         }
     }
 
@@ -28,11 +27,7 @@ impl Pass {
         f(&self.context);
     }
 
-    pub fn render_static_uis(&mut self) {
-        self.static_uis = true;
-    }
-
-    pub(super) fn finish(self) -> (CommandEncoder, RenderPass<'static>, bool) {
-        (self.encoder, self.pass, self.static_uis)
+    pub fn into_inner(self) -> (CommandEncoder, RenderPass<'static>, (u32, u32)) {
+        (self.encoder, self.pass, self.dimensions)
     }
 }
