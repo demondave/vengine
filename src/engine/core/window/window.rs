@@ -44,8 +44,13 @@ impl WindowBuilder {
         self
     }
 
-    pub fn set_resizable(mut self, resizable: bool) -> WindowBuilder {
+    pub fn resizable(mut self, resizable: bool) -> WindowBuilder {
         self.window_attributes.resizable = resizable;
+        self
+    }
+
+    pub fn title(mut self, title: String) -> WindowBuilder {
+        self.window_attributes.title = title;
         self
     }
 

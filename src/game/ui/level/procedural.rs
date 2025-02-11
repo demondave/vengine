@@ -191,10 +191,10 @@ impl Scene for ProceduralLevel {
                 .push_metric("physics", self.last.elapsed().as_secs_f64() * 1000.0)
         }
 
-        ui_pass.render_ui(|ui| {
+        ui_pass.render_ui(|ctx| {
             Area::new("stats_display".into())
                 .anchor(Align2::LEFT_TOP, [10.0, 10.0])
-                .show(ui, |ui| {
+                .show(ctx, |ui| {
                     Frame::new().fill(Color32::BLACK).show(ui, |ui| {
                         for line in self.stats.get() {
                             ui.label(
@@ -208,7 +208,7 @@ impl Scene for ProceduralLevel {
                 });
             Area::new("coordinates_display".into())
                 .anchor(Align2::RIGHT_TOP, [-10.0, 10.0])
-                .show(ui, |ui| {
+                .show(ctx, |ui| {
                     Frame::new().fill(Color32::BLACK).show(ui, |ui| {
                         let labels = ["X", "Y", "Z"];
                         let coords = [eye.x, eye.y, eye.z];

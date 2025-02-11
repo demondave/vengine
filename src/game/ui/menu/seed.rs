@@ -39,10 +39,10 @@ impl<T: Scene + SeededLevel> Scene for SeedMenu<T> {
 
         let mut ui_pass = frame.start_ui_render_pass();
 
-        ui_pass.render_ui(|ui| {
+        ui_pass.render_ui(|ctx| {
             Area::new("seed_menu_area".into())
                 .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
-                .show(ui, |ui| {
+                .show(ctx, |ui| {
                     Frame::new().fill(Color32::BLACK).show(ui, |ui| {
                         ui.vertical_centered(|ui| {
                             ui.add(TextEdit::singleline(&mut self.buffer).hint_text("Seed"));
@@ -74,6 +74,7 @@ impl<T: Scene + SeededLevel> Scene for SeedMenu<T> {
                                     .clicked()
                                 {
                                     if let Ok(seed) = self.buffer.parse::<u32>() {
+                                        game.pop_scene();
                                         game.push_scene(Box::new(T::with_seed(seed)))
                                     }
                                 }

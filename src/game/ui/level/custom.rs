@@ -88,10 +88,10 @@ impl Scene for CustomLevel {
 
         scene_pass.render_object(&self.object);
 
-        ui_pass.render_ui(|ui| {
+        ui_pass.render_ui(|ctx| {
             Area::new("stats_display".into())
                 .anchor(Align2::LEFT_TOP, [10.0, 10.0])
-                .show(ui, |ui| {
+                .show(ctx, |ui| {
                     Frame::new().fill(Color32::BLACK).show(ui, |ui| {
                         for line in self.stats.get() {
                             ui.label(
@@ -105,7 +105,7 @@ impl Scene for CustomLevel {
                 });
             Area::new("coordinates_display".into())
                 .anchor(Align2::RIGHT_TOP, [-10.0, 10.0])
-                .show(ui, |ui| {
+                .show(ctx, |ui| {
                     Frame::new().fill(Color32::BLACK).show(ui, |ui| {
                         let labels = ["X", "Y", "Z"];
                         let coords = [eye.x, eye.y, eye.z];

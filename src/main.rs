@@ -44,6 +44,11 @@ pub fn main() {
         .size(1000, 1000)
         .cursor_visible(false)
         .cursor_lock(true)
+        .title(format!(
+            "{} v{}",
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION")
+        ))
         .build();
 
     std::thread::spawn(move || {
