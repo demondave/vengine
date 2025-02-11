@@ -4,7 +4,7 @@ use crate::engine::voxel::chunk::VOXEL_SIZE;
 use crate::engine::voxel::object::Object;
 use crate::engine::voxel::terrain::Terrain;
 use cgmath::{Matrix4, Point3, Quaternion, Vector3};
-use colorgrad::preset::turbo;
+use colorgrad::Gradient;
 use egui::{Align2, Area, Color32, FontFamily, Frame, RichText};
 use engine::{
     core::{engine::Engine, window::Window},
@@ -12,6 +12,7 @@ use engine::{
     voxel::chunk::Chunk,
 };
 use input::EventHandler;
+use noise::{NoiseFn, Perlin};
 use rand::Rng;
 use rapier3d::dynamics::{RigidBodyBuilder, RigidBodyHandle};
 use rapier3d::geometry::ColliderBuilder;
@@ -139,11 +140,53 @@ fn setup(engine: &'static Engine) {
         cubes.push((cube, cube_handle));
     }
 
+    pub struct NaturalGradient {
+        pub noise: Perlin,
+    }
+
+    pub fn natural() -> NaturalGradient {
+        NaturalGradient {
+            noise: Perlin::new(1234),
+        }
+    }
+
+    impl Gradient for NaturalGradient {
+        fn at(&self, t: f32) -> colorgrad::Color {
+            let t = t.clamp(0.0, 1.0);
+            let base_height = t * 256.0;
+            let noise = self.noise.get([base_height as f64 * 0.1, 0.0]) as f32 * 4.0;
+
+            let height = t * 256.0 + noise;
+
+            if height <= 32.0 {
+                let water_t = height / 32.0;
+                colorgrad::Color::new(0.0, 0.2 + (water_t * 0.4), 0.5 + (water_t * 0.5), 1.0)
+            } else if height <= 35.0 {
+                colorgrad::Color::new(0.94, 0.87, 0.73, 1.0)
+            } else if height <= 90.0 {
+                let grass_t = (height - 32.0) / 58.0;
+                colorgrad::Color::new(0.2 + (grass_t * 0.1), 0.5 - (grass_t * 0.1), 0.1, 1.0)
+            } else if height <= 140.0 {
+                let mountain_t = (height - 90.0) / 50.0;
+                colorgrad::Color::new(
+                    0.5 + (mountain_t * 0.1),
+                    0.4 + (mountain_t * 0.1),
+                    0.3 + (mountain_t * 0.2),
+                    1.0,
+                )
+            } else {
+                let snow_t = (height - 140.0) / 116.0;
+                let white = 0.9 + (snow_t * 0.1);
+                colorgrad::Color::new(white, white, white + 0.05, 1.0)
+            }
+        }
+    }
+
     let seed: u32 = rng.random();
     let mut terrain = Terrain::new(
         seed,
         TERRAIN_RENDER_DISTANCE,
-        Box::new(turbo()),
+        Box::new(natural()),
         engine.device().clone(),
     );
 
