@@ -1,7 +1,4 @@
-mod application;
-mod event;
+pub mod events;
+pub mod handler;
 #[allow(clippy::module_inception)]
-mod window;
-
-pub use event::*;
-pub use window::{Window, WindowBuilder};
+pub mod window;

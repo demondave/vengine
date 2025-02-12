@@ -73,9 +73,6 @@ impl Scene for CustomLevel {
             }
         }
 
-        // Handle resizes befor rendering
-        game.engine().renderer().handle_resize();
-
         let start = Instant::now();
 
         let eye = game.engine().camera().get_eye();

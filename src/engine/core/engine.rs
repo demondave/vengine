@@ -3,24 +3,23 @@ use std::sync::{
     Arc,
 };
 
-use crossbeam::channel::Receiver;
-use wgpu::Device;
-use winit::event::Event;
-
-use super::window::{UserEvent, Window};
 use crate::engine::renderer::{backend::Backend, camera::Camera, frame::Frame, renderer::Renderer};
 use crate::engine::ui::renderer::UiRenderer;
+use crossbeam::channel::Receiver;
+use wgpu::{Device, SurfaceTexture};
+
+use super::window::{handler::Event, window::Window};
 
 pub struct Engine<'a> {
     renderer: Renderer<'a>,
     ui_renderer: UiRenderer,
-    exited: AtomicBool,
+    exited: &'static AtomicBool,
     // Window must be dropped at last
-    window: Arc<Window>,
+    window: &'static Window,
 }
 
 impl<'a> Engine<'a> {
-    pub fn new(window: Arc<Window>, backend: Backend<'a>) -> Self {
+    pub fn new(window: &'static Window, backend: Backend<'a>) -> Self {
         let renderer = Renderer::new(backend, window.dimension());
 
         let ui_renderer = UiRenderer::new(window.window(), renderer.backend(), 1);
@@ -29,7 +28,7 @@ impl<'a> Engine<'a> {
             window,
             renderer,
             ui_renderer,
-            exited: AtomicBool::new(false),
+            exited: Box::leak(Box::new(AtomicBool::new(false))),
         }
     }
 
@@ -42,12 +41,22 @@ impl<'a> Engine<'a> {
     }
 
     pub fn start_frame(&self) -> Frame {
-        let output = self
-            .renderer()
-            .backend()
-            .surface()
-            .get_current_texture()
-            .unwrap();
+        let output: SurfaceTexture;
+
+        loop {
+            match self.renderer().backend().surface().get_current_texture() {
+                Ok(o) => {
+                    output = o;
+                    break;
+                }
+                Err(wgpu::SurfaceError::Outdated) => {
+                    self.renderer().reconfigure_surface();
+                }
+                Err(e) => {
+                    panic!("{}", e)
+                }
+            };
+        }
 
         Frame::new(self, output)
     }
@@ -67,10 +76,10 @@ impl<'a> Engine<'a> {
     }
 
     pub fn window(&self) -> &Window {
-        &self.window
+        self.window
     }
 
-    pub fn events(&self) -> &Receiver<Event<UserEvent>> {
+    pub fn events(&self) -> &Receiver<Event> {
         self.window().events()
     }
 
@@ -78,9 +87,11 @@ impl<'a> Engine<'a> {
         self.exited.load(Ordering::Relaxed)
     }
 
+    pub fn exited_ref(&self) -> &'static AtomicBool {
+        self.exited
+    }
+
     pub fn exit(&self) {
         self.exited.store(true, Ordering::Relaxed);
-        // Exit the window
-        self.window().exit();
     }
 }

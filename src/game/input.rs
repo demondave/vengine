@@ -1,4 +1,4 @@
-use crate::engine::core::engine::Engine;
+use crate::engine::core::{engine::Engine, window::handler::Event};
 use cgmath::{Deg, InnerSpace, Matrix3, Vector3, Zero};
 use core::f32;
 use crossbeam::{atomic::AtomicCell, channel::Sender};
@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 use winit::{
-    event::{DeviceEvent, Event, WindowEvent},
+    event::{DeviceEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
 
@@ -58,8 +58,6 @@ impl EventHandler {
     pub fn handle(&mut self) {
         let events = self.engine.events();
 
-        let id = self.engine.window().id();
-
         let duration = Duration::from_secs_f64(1.0 / TICKS);
 
         loop {
@@ -71,18 +69,12 @@ impl EventHandler {
 
             while let Ok(event) = events.try_recv() {
                 match event {
-                    Event::WindowEvent { window_id, event } => {
-                        if window_id == id {
-                            self.handle_window_event(event);
-                        }
+                    Event::WindowEvent(event) => {
+                        self.handle_window_event(event);
                     }
-                    Event::DeviceEvent {
-                        device_id: _,
-                        event,
-                    } => {
+                    Event::DeviceEvent(event) => {
                         self.handle_device_event(event);
                     }
-                    _ => {}
                 }
             }
 
@@ -179,16 +171,6 @@ impl EventHandler {
     }
 
     pub fn handle_window_event(&mut self, event: WindowEvent) {
-        match event {
-            WindowEvent::CloseRequested => {
-                self.engine.exit();
-            }
-            WindowEvent::Resized(size) => {
-                self.engine.renderer().resize(size.width, size.height);
-            }
-            _ => {}
-        }
-
         self.events.send(event.clone()).unwrap();
 
         if matches!(self.handler.load(), InputHandler::Gui) {
@@ -204,21 +186,6 @@ impl EventHandler {
             is_synthetic: _,
         } = event
         {
-            /*
-            if let PhysicalKey::Code(KeyCode::Escape) = event.physical_key {
-                if !event.state.is_pressed() {
-                    self.on_escape();
-                }
-                return;
-            }
-
-
-            // option menu is open
-            if self.options_ui_guard.is_some() {
-                return;
-            }
-            */
-
             if let PhysicalKey::Code(code) = event.physical_key {
                 if let Some(state) = self.keymap.get_mut(&code) {
                     *state = event.state.is_pressed();
@@ -226,52 +193,4 @@ impl EventHandler {
             }
         }
     }
-
-    /*
-    fn on_escape(&mut self) {
-        let window = self.engine.window().window();
-
-        if let Some(guard) = self.options_ui_guard.take() {
-            drop(guard);
-
-            window.set_cursor_visible(false);
-            window
-                .set_cursor_grab(CursorGrabMode::Confined)
-                .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked))
-                .unwrap();
-
-            return;
-        }
-
-        window.set_cursor_visible(true);
-        window.set_cursor_grab(CursorGrabMode::None).unwrap();
-
-        self.options_ui_guard = Some(self.engine.ui_renderer().add_static_ui(|ctx| {
-            let screen_rect = ctx.screen_rect();
-
-            egui::Area::new("pause_menu".into())
-                .fixed_pos(screen_rect.center())
-                .sense(Sense::click())
-                .show(ctx, |ui| {
-                    egui::Frame::new()
-                        .fill(Color32::from_rgba_unmultiplied(0, 0, 0, 230))
-                        .show(ui, |ui| {
-                            ui.set_min_size(screen_rect.size());
-
-                            ui.add_space(screen_rect.height() / 2. - 60. / 2.);
-
-                            ui.vertical_centered(|ui| {
-                                let button = ui.add_sized(
-                                    [140., 60.],
-                                    egui::Button::new(RichText::new("Exit").size(24.)),
-                                );
-                                if button.clicked() {
-                                    self.engine.exit();
-                                }
-                            });
-                        })
-                });
-        }))
-    }
-    */
 }
