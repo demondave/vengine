@@ -31,7 +31,7 @@ impl Terrain {
         seed: u32,
         distance: u32,
         gradient: Box<dyn Gradient + Send + Sync>,
-        device: Arc<Device>,
+        engine: &Engine,
     ) -> Terrain {
         let capacity = (distance * 2).pow(2) as usize;
 
@@ -40,10 +40,10 @@ impl Terrain {
         let (unload_sender, unload_receiver) = unbounded();
 
         let mut generator = Generator {
+            device: engine.device().clone(),
             seed,
             distance,
             gradient,
-            device,
             chunks: HashSet::with_capacity(capacity),
             height_cache: HashMap::new(),
             height_bounds_cache: HashMap::with_capacity(capacity),
@@ -134,13 +134,13 @@ struct Generator {
     seed: u32,
     distance: u32,
     gradient: Box<dyn Gradient + Send + Sync>,
-    device: Arc<Device>,
     chunks: HashSet<Vector3<i32>>,
     height_cache: HashMap<(i32, i32), usize>,
     height_bounds_cache: HashMap<(i32, i32), (i32, i32)>,
     eye_receiver: Receiver<Vector3<f32>>,
     chunk_sender: Sender<(DMatrix<f32>, Arc<(Vector3<i32>, ChunkMesh)>)>,
     unload_receiver: Receiver<Vector3<i32>>,
+    device: Arc<Device>,
 }
 
 impl Generator {
@@ -158,7 +158,7 @@ impl Generator {
 
                     if !self.chunks.contains(&chunk_pos) {
                         if let Some(chunk) = self.generate_chunk(chunk_pos) {
-                            self.chunk_sender.send(chunk).unwrap();
+                            let _ = self.chunk_sender.send(chunk);
                         }
                     }
                 }

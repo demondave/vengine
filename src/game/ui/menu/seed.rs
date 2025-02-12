@@ -33,8 +33,6 @@ impl<T: Scene + SeededLevel> Scene for SeedMenu<T> {
     }
 
     fn render(&mut self, game: &mut Game) {
-        game.engine.renderer().handle_resize();
-
         let frame = game.engine.start_frame();
 
         let mut ui_pass = frame.start_ui_render_pass();

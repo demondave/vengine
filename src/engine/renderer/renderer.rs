@@ -79,6 +79,10 @@ impl<'a> Renderer<'a> {
         &self.camera
     }
 
+    pub fn dimensions(&self) -> (u32, u32) {
+        self.current_size.load()
+    }
+
     pub fn resize(&self, width: u32, height: u32) {
         if width > 0 && height > 0 {
             self.new_size.store((width, height));
@@ -86,11 +90,7 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    pub fn dimensions(&self) -> (u32, u32) {
-        self.current_size.load()
-    }
-
-    pub fn handle_resize(&self) {
+    pub fn reconfigure_surface(&self) {
         if self.resized.load(Ordering::Relaxed) {
             let (width, height) = self.new_size.load();
             let mut surface_lock = self.backend().surface_configuration().lock().unwrap();

@@ -1,10 +1,9 @@
-use crate::engine::core::window::WindowBuilder;
 use crossbeam::{
     atomic::AtomicCell,
     channel::{unbounded, Receiver},
 };
 use engine::{
-    core::{engine::Engine, window::Window},
+    core::{engine::Engine, window::window::Window},
     renderer::backend::Backend,
 };
 use game::{
@@ -12,8 +11,7 @@ use game::{
     ui::menu::main::MainMenu,
     Game,
 };
-use std::sync::Arc;
-use winit::event::WindowEvent;
+use winit::{event::WindowEvent, window::WindowAttributes};
 
 pub mod engine;
 pub mod game;
@@ -40,31 +38,24 @@ pub fn main() {
         Client::start();
     }
 
-    let (window_fut, run_fn) = WindowBuilder::new()
-        .size(1000, 1000)
-        .cursor_visible(false)
-        .cursor_lock(true)
-        .title(format!(
-            "{} v{}",
-            env!("CARGO_PKG_NAME"),
-            env!("CARGO_PKG_VERSION")
-        ))
-        .build();
+    let (window, mut events) = Window::new(WindowAttributes::default());
 
-    std::thread::spawn(move || {
-        let window = pollster::block_on(window_fut);
-        init(Arc::new(window));
-    });
+    let window: &'static Window = Box::leak(Box::new(window));
 
-    // We need to spawn a new thread because the event loop needs to be run in the main loop
-    run_fn()
-}
-
-fn init(window: Arc<Window>) {
-    let backend = pollster::block_on(Backend::new(&window));
+    let backend = pollster::block_on(Backend::new(window));
 
     let engine: &'static Engine = Box::leak(Box::new(Engine::new(window, backend)));
 
+    events.handler_mut().set_engine(engine);
+
+    std::thread::spawn(move || {
+        init(engine);
+    });
+
+    events.start();
+}
+
+fn init(engine: &'static Engine) {
     let handler: &'static AtomicCell<InputHandler> =
         Box::leak(Box::new(AtomicCell::new(InputHandler::Gui)));
 

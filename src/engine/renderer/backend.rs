@@ -1,9 +1,10 @@
-use crate::engine::core::window::Window;
 use std::sync::{Arc, Mutex};
 use wgpu::{
     Backends, Device, Instance, InstanceDescriptor, Queue, Surface, SurfaceConfiguration,
     TextureFormat,
 };
+
+use crate::engine::core::window::window::Window;
 
 pub struct Backend<'a> {
     surface: Surface<'a>,
@@ -13,14 +14,14 @@ pub struct Backend<'a> {
     format: TextureFormat,
 }
 
-impl Backend<'_> {
-    pub async fn new(window: &Window) -> Self {
+impl<'a> Backend<'a> {
+    pub async fn new(window: &'a Window) -> Self {
         let instance = Instance::new(&InstanceDescriptor {
             backends: Backends::PRIMARY,
             ..Default::default()
         });
 
-        let surface = instance.create_surface(window.window().clone()).unwrap();
+        let surface = instance.create_surface(window.window()).unwrap();
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {

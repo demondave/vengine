@@ -169,7 +169,7 @@ impl Scene for PhysicsLevel {
             seed,
             TERRAIN_RENDER_DISTANCE,
             Box::new(natural()),
-            game.engine().device().clone(),
+            game.engine(),
         );
 
         // Render object
@@ -232,9 +232,6 @@ impl Scene for PhysicsLevel {
                 }
             }
         }
-
-        // Handle resizes befor rendering
-        game.engine().renderer().handle_resize();
 
         let start = Instant::now();
 

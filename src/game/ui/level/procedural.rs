@@ -102,7 +102,7 @@ impl Scene for ProceduralLevel {
             seed,
             TERRAIN_RENDER_DISTANCE,
             Box::new(natural(seed)),
-            game.engine().device().clone(),
+            game.engine(),
         );
 
         // Render object
@@ -165,9 +165,6 @@ impl Scene for ProceduralLevel {
                 }
             }
         }
-
-        // Handle resizes befor rendering
-        game.engine().renderer().handle_resize();
 
         let start = Instant::now();
 
