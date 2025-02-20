@@ -1,14 +1,16 @@
-use crate::engine::renderer::backend::Backend;
 use egui::{Context, ViewportId};
-use egui_wgpu::Renderer;
 use egui_winit::State;
 use std::sync::{Mutex, MutexGuard};
-use winit::{event::WindowEvent, window::Window};
+use winit::event::WindowEvent;
+
+use crate::engine::core::window::window::Window;
+
+use super::backend::Backend;
 
 pub struct UiRenderer {
     state: Mutex<State>,
     context: Context,
-    renderer: Mutex<Renderer>,
+    rendererer: Mutex<egui_wgpu::Renderer>,
 }
 
 impl UiRenderer {
@@ -17,13 +19,13 @@ impl UiRenderer {
         let state = State::new(
             context.clone(),
             ViewportId::ROOT,
-            window,
-            Some(window.scale_factor() as f32),
+            window.window(),
+            Some(window.window().scale_factor() as f32),
             None,
             Some(2048),
         );
 
-        let renderer = Renderer::new(
+        let rendererer = egui_wgpu::Renderer::new(
             backend.device(),
             *backend.surface_format(),
             None,
@@ -34,7 +36,7 @@ impl UiRenderer {
         UiRenderer {
             state: Mutex::new(state),
             context,
-            renderer: Mutex::new(renderer),
+            rendererer: Mutex::new(rendererer),
         }
     }
 
@@ -42,8 +44,8 @@ impl UiRenderer {
         self.state.lock().unwrap()
     }
 
-    pub fn renderer(&self) -> MutexGuard<Renderer> {
-        self.renderer.lock().unwrap()
+    pub fn renderer(&self) -> MutexGuard<egui_wgpu::Renderer> {
+        self.rendererer.lock().unwrap()
     }
 
     pub fn context(&self) -> &Context {
@@ -51,6 +53,6 @@ impl UiRenderer {
     }
 
     pub fn handle_window_event(&self, window: &Window, event: &WindowEvent) {
-        let _ = self.state().on_window_event(window, event);
+        let _ = self.state().on_window_event(window.window(), event);
     }
 }

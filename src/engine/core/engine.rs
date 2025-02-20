@@ -3,16 +3,14 @@ use std::sync::{
     Arc,
 };
 
-use crate::engine::renderer::{backend::Backend, camera::Camera, frame::Frame, renderer::Renderer};
-use crate::engine::ui::renderer::UiRenderer;
+use crate::engine::renderer::{backend::Backend, camera::Camera, Renderer};
 use crossbeam::channel::Receiver;
-use wgpu::{Device, SurfaceTexture};
+use wgpu::Device;
 
 use super::window::{handler::Event, window::Window};
 
 pub struct Engine<'a> {
     renderer: Renderer<'a>,
-    ui_renderer: UiRenderer,
     exited: &'static AtomicBool,
     // Window must be dropped at last
     window: &'static Window,
@@ -20,53 +18,17 @@ pub struct Engine<'a> {
 
 impl<'a> Engine<'a> {
     pub fn new(window: &'static Window, backend: Backend<'a>) -> Self {
-        let renderer = Renderer::new(backend, window.dimension());
-
-        let ui_renderer = UiRenderer::new(window.window(), renderer.backend(), 1);
+        let renderer = Renderer::new(backend, window);
 
         Self {
             window,
             renderer,
-            ui_renderer,
             exited: Box::leak(Box::new(AtomicBool::new(false))),
         }
     }
 
     pub fn renderer(&self) -> &Renderer<'a> {
         &self.renderer
-    }
-
-    pub fn ui_renderer(&self) -> &UiRenderer {
-        &self.ui_renderer
-    }
-
-    pub fn start_frame(&self) -> Frame {
-        let output: SurfaceTexture;
-
-        self.renderer().reconfigure_surface();
-
-        loop {
-            match self.renderer().backend().surface().get_current_texture() {
-                Ok(o) => {
-                    output = o;
-                    break;
-                }
-                Err(wgpu::SurfaceError::Outdated) => {
-                    self.renderer().reconfigure_surface();
-                }
-                Err(e) => {
-                    panic!("{}", e)
-                }
-            };
-        }
-
-        Frame::new(self, output)
-    }
-
-    pub fn finish_frame(&self, frame: Frame) {
-        let output = frame.finish();
-
-        output.present();
     }
 
     pub fn camera(&self) -> &Camera {

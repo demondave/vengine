@@ -4,7 +4,7 @@ use winit::{
     event::{DeviceEvent, WindowEvent},
 };
 
-use crate::engine::core::engine::Engine;
+use crate::engine::{core::engine::Engine, renderer::size::Size};
 
 pub enum Event {
     WindowEvent(WindowEvent),
@@ -54,10 +54,11 @@ impl ApplicationHandler for WindowEventHandler {
                 self.engine.unwrap().exit();
             }
             WindowEvent::Resized(size) => {
-                self.engine
-                    .unwrap()
-                    .renderer()
-                    .resize(size.width, size.height);
+                self.engine.unwrap().renderer().resize(Size {
+                    width: size.width,
+                    height: size.height,
+                    pixels_per_point: 1.0,
+                });
             }
             _ => {}
         }

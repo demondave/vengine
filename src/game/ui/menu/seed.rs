@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::game::{input::InputHandler, scene::Scene, ui::level::SeededLevel, Game};
+use crate::{
+    engine::renderer::frame::ui_pass::UiPass,
+    game::{input::InputHandler, scene::Scene, ui::level::SeededLevel, Game},
+};
 use egui::{Align2, Area, Button, Color32, Frame, RichText, TextEdit};
 use winit::window::CursorGrabMode;
 
@@ -33,9 +36,9 @@ impl<T: Scene + SeededLevel> Scene for SeedMenu<T> {
     }
 
     fn render(&mut self, game: &mut Game) {
-        let frame = game.engine.start_frame();
+        let frame = game.engine.renderer().start_frame();
 
-        let mut ui_pass = frame.start_ui_render_pass();
+        let mut ui_pass = frame.start_render_pass::<UiPass>();
 
         ui_pass.render_ui(|ctx| {
             Area::new("seed_menu_area".into())
@@ -82,8 +85,8 @@ impl<T: Scene + SeededLevel> Scene for SeedMenu<T> {
                 });
         });
 
-        frame.finish_ui_render_pass(ui_pass);
+        frame.finish_render_pass::<UiPass>(ui_pass);
 
-        game.engine.finish_frame(frame);
+        game.engine.renderer().finish_frame(frame);
     }
 }

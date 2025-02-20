@@ -1,5 +1,9 @@
 use crate::{
-    engine::{physics::simulation::Simulation, voxel::terrain::Terrain},
+    engine::{
+        physics::simulation::Simulation,
+        renderer::frame::{ui_pass::UiPass, voxel_pass::VoxelPass},
+        voxel::terrain::Terrain,
+    },
     game::{input::InputHandler, scene::Scene, ui::menu::pause::PauseMenu, Game},
     stats::{Ranking, Stats},
     TERRAIN_RENDER_DISTANCE,
@@ -170,11 +174,11 @@ impl Scene for ProceduralLevel {
 
         let eye = game.engine().camera().get_eye();
 
-        let frame = game.engine().start_frame();
+        let frame = game.engine().renderer().start_frame();
 
-        let mut scene_pass = frame.start_voxel_render_pass().unwrap();
+        let mut scene_pass = frame.start_render_pass::<VoxelPass>();
 
-        let mut ui_pass = frame.start_ui_render_pass();
+        let mut ui_pass = frame.start_render_pass::<UiPass>();
 
         self.terrain
             .render(game.engine(), &mut scene_pass, &mut self.simulation);
@@ -222,10 +226,10 @@ impl Scene for ProceduralLevel {
                 });
         });
 
-        frame.finish_voxel_render_pass(scene_pass);
-        frame.finish_ui_render_pass(ui_pass);
+        frame.finish_render_pass(scene_pass);
+        frame.finish_render_pass(ui_pass);
 
-        game.engine().finish_frame(frame);
+        game.engine().renderer().finish_frame(frame);
 
         let end = Instant::now();
 

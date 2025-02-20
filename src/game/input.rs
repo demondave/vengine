@@ -175,8 +175,9 @@ impl EventHandler {
 
         if matches!(self.handler.load(), InputHandler::Gui) {
             self.engine
+                .renderer()
                 .ui_renderer()
-                .handle_window_event(self.engine.window().window(), &event);
+                .handle_window_event(self.engine.window(), &event);
             return;
         }
 
