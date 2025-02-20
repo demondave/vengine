@@ -43,6 +43,8 @@ impl<'a> Engine<'a> {
     pub fn start_frame(&self) -> Frame {
         let output: SurfaceTexture;
 
+        self.renderer().reconfigure_surface();
+
         loop {
             match self.renderer().backend().surface().get_current_texture() {
                 Ok(o) => {
