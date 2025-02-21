@@ -11,7 +11,6 @@ pub mod voxel;
 use super::core::window::window::Window;
 use backend::Backend;
 use camera::Camera;
-use cgmath::Point3;
 use crossbeam::atomic::AtomicCell;
 use frame::Frame;
 use size::Size;
@@ -31,7 +30,7 @@ pub struct Renderer<'a> {
     voxel_renderer: VoxelRenderer,
     ui_renderer: UiRenderer,
     camera: Camera,
-    pub depth_texture: Mutex<Texture>,
+    depth_texture: Mutex<Texture>,
     backend: Backend<'a>,
     window: &'static Window,
 }
@@ -45,7 +44,6 @@ impl<'a> Renderer<'a> {
         };
 
         let camera = Camera::new(
-            Point3::new(0.0, 5.0, 2.0),
             size.width as f32 / size.height as f32,
             backend.device(),
             backend.queue().clone(),
@@ -90,7 +88,7 @@ impl<'a> Renderer<'a> {
     pub fn start_frame(&self) -> Frame {
         let output: SurfaceTexture;
 
-        self.reconfigure_surface();
+        self.handle_resize();
 
         loop {
             match self.backend().surface().get_current_texture() {
@@ -135,26 +133,31 @@ impl<'a> Renderer<'a> {
         &self.ui_renderer
     }
 
-    pub fn reconfigure_surface(&self) {
+    pub fn handle_resize(&self) {
         if self.resized.load(Ordering::Relaxed) {
-            let size = self.new_size.load();
-            let mut surface_lock = self.backend().surface_configuration().lock().unwrap();
-            surface_lock.width = size.width;
-            surface_lock.height = size.height;
-
-            self.backend()
-                .surface()
-                .configure(self.backend().device(), &surface_lock);
-
-            let mut texture_lock = self.depth_texture.lock().unwrap();
-
-            *texture_lock = Texture::create_depth_texture(
-                self.backend().device(),
-                &surface_lock,
-                "engine::depth_texture",
-            );
-            self.current_size.store(size);
+            self.reconfigure_surface();
             self.resized.store(false, Ordering::Relaxed);
         }
+    }
+
+    pub fn reconfigure_surface(&self) {
+        let size = self.new_size.load();
+
+        let mut surface_lock = self.backend().surface_configuration().lock().unwrap();
+        surface_lock.width = size.width;
+        surface_lock.height = size.height;
+
+        self.backend()
+            .surface()
+            .configure(self.backend().device(), &surface_lock);
+
+        let mut texture_lock = self.depth_texture.lock().unwrap();
+
+        *texture_lock = Texture::create_depth_texture(
+            self.backend().device(),
+            &surface_lock,
+            "vengine::depth_texture",
+        );
+        self.current_size.store(size);
     }
 }

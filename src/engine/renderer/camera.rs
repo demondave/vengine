@@ -27,7 +27,7 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(pos: Point3<f32>, aspect: f32, device: &Device, queue: Arc<Queue>) -> Self {
+    pub fn new(aspect: f32, device: &Device, queue: Arc<Queue>) -> Self {
         let camera_uniform = CameraUniform::new();
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -61,8 +61,8 @@ impl Camera {
         });
 
         let camera = Camera {
-            eye: AtomicCell::new(pos),
-            target: AtomicCell::new((0.0, 0.0, 0.0).into()),
+            eye: AtomicCell::new(Point3::new(0.0, 0.0, 0.0)),
+            target: AtomicCell::new(Point3::new(0.0, 0.0, 1.0)),
             up: cgmath::Vector3::unit_y(),
             aspect: AtomicCell::new(aspect),
             fovy: 45.0,
