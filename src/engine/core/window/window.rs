@@ -8,7 +8,8 @@ use super::handler::Event;
 
 pub struct Window {
     window: Arc<winit::window::Window>,
-    receiver: Receiver<Event>,
+    events_receiver: Receiver<Event>,
+    engine_events_receiver: Receiver<Event>,
 }
 
 impl Window {
@@ -18,14 +19,16 @@ impl Window {
         #[allow(deprecated)]
         let window = events.create_window(attributes).unwrap();
 
-        let (sender, receiver) = unbounded();
+        let (events_sender, events_receiver) = unbounded();
+        let (engine_events_sender, engine_events_receiver) = unbounded();
 
         (
             Window {
                 window: Arc::new(window),
-                receiver,
+                events_receiver,
+                engine_events_receiver,
             },
-            WindowEventLoop::new(events, sender),
+            WindowEventLoop::new(events, events_sender, engine_events_sender),
         )
     }
 
@@ -39,7 +42,11 @@ impl Window {
     }
 
     pub fn events(&self) -> &Receiver<Event> {
-        &self.receiver
+        &self.events_receiver
+    }
+
+    pub fn engine_events(&self) -> &Receiver<Event> {
+        &self.engine_events_receiver
     }
 
     pub fn id(&self) -> WindowId {

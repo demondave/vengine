@@ -4,29 +4,22 @@ use winit::{
     event::{DeviceEvent, WindowEvent},
 };
 
-use crate::engine::{core::engine::Engine, renderer::size::Size};
-
 pub enum Event {
     WindowEvent(WindowEvent),
     DeviceEvent(DeviceEvent),
 }
 
 pub struct WindowEventHandler {
-    sender: Sender<Event>,
-
-    pub engine: Option<&'static Engine<'static>>,
+    events_sender: Sender<Event>,
+    engine_events_sender: Sender<Event>,
 }
 
 impl WindowEventHandler {
-    pub fn new(sender: Sender<Event>) -> Self {
+    pub fn new(events_sender: Sender<Event>, engine_events_sender: Sender<Event>) -> Self {
         Self {
-            sender,
-            engine: None,
+            events_sender,
+            engine_events_sender,
         }
-    }
-
-    pub fn set_engine(&mut self, engine: &'static Engine<'static>) {
-        self.engine = Some(engine)
     }
 }
 
@@ -39,7 +32,7 @@ impl ApplicationHandler for WindowEventHandler {
         _device_id: winit::event::DeviceId,
         event: DeviceEvent,
     ) {
-        self.sender.send(Event::DeviceEvent(event)).unwrap();
+        self.events_sender.send(Event::DeviceEvent(event)).unwrap();
     }
 
     fn window_event(
@@ -48,21 +41,20 @@ impl ApplicationHandler for WindowEventHandler {
         _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
-        // Handle closes and resizes immediately
         match event {
             WindowEvent::CloseRequested => {
-                self.engine.unwrap().exit();
+                self.engine_events_sender
+                    .send(Event::WindowEvent(event.clone()))
+                    .unwrap();
             }
-            WindowEvent::Resized(size) => {
-                self.engine.unwrap().renderer().resize(Size {
-                    width: size.width,
-                    height: size.height,
-                    pixels_per_point: 1.0,
-                });
+            WindowEvent::Resized(_) => {
+                self.engine_events_sender
+                    .send(Event::WindowEvent(event.clone()))
+                    .unwrap();
             }
             _ => {}
         }
 
-        self.sender.send(Event::WindowEvent(event)).unwrap();
+        self.events_sender.send(Event::WindowEvent(event)).unwrap();
     }
 }

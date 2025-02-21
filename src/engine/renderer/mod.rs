@@ -156,6 +156,10 @@ impl<'a> Renderer<'a> {
             &surface_lock,
             "vengine::depth_texture",
         );
+
+        self.camera
+            .set_aspect(size.width as f32 / size.height as f32);
+
         self.current_size.store(size);
     }
 }

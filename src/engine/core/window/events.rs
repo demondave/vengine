@@ -10,25 +10,18 @@ pub struct WindowEventLoop {
 }
 
 impl WindowEventLoop {
-    pub fn new(events: EventLoop<()>, sender: Sender<Event>) -> Self {
+    pub fn new(
+        events: EventLoop<()>,
+        events_sender: Sender<Event>,
+        engine_events_sender: Sender<Event>,
+    ) -> Self {
         WindowEventLoop {
             events,
-            handler: WindowEventHandler::new(sender),
+            handler: WindowEventHandler::new(events_sender, engine_events_sender),
         }
     }
 
-    pub fn start(&mut self) {
-        loop {
-            self.events
-                .pump_app_events(Some(Duration::from_millis(100)), &mut self.handler);
-
-            if self.handler.engine.unwrap().exited() {
-                break;
-            }
-        }
-    }
-
-    pub fn handler_mut(&mut self) -> &mut WindowEventHandler {
-        &mut self.handler
+    pub fn pump(&mut self, timeout: Option<Duration>) {
+        self.events.pump_app_events(timeout, &mut self.handler);
     }
 }
