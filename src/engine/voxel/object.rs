@@ -4,10 +4,7 @@ use super::{
 };
 use ahash::{HashMap, HashMapExt};
 use cgmath::{Matrix4, Vector3};
-use std::{
-    collections::{hash_map::Iter, HashSet},
-    sync::Arc,
-};
+use std::collections::{hash_map::Iter, HashSet};
 use wgpu::Device;
 
 pub struct Object {
@@ -16,11 +13,11 @@ pub struct Object {
     // Chunks with additional information
     chunks: HashMap<Vector3<i32>, ChunkMesh>,
     // Device
-    device: Arc<Device>,
+    device: Device,
 }
 
 impl Object {
-    pub fn new(device: Arc<Device>, transform: Matrix4<f32>) -> Object {
+    pub fn new(device: Device, transform: Matrix4<f32>) -> Object {
         Object {
             transform,
             chunks: HashMap::new(),
@@ -42,7 +39,7 @@ impl Object {
     }
 
     pub fn from_voxels(
-        device: Arc<Device>,
+        device: Device,
         transform: Matrix4<f32>,
         mut voxels: Vec<([i32; 3], [u8; 4])>,
     ) -> Object {

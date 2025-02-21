@@ -1,10 +1,6 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
-
 use crate::engine::renderer::{backend::Backend, camera::Camera, Renderer};
 use crossbeam::channel::Receiver;
+use std::sync::atomic::{AtomicBool, Ordering};
 use wgpu::Device;
 
 use super::window::{handler::Event, window::Window};
@@ -12,16 +8,13 @@ use super::window::{handler::Event, window::Window};
 pub struct Engine<'a> {
     renderer: Renderer<'a>,
     exited: &'static AtomicBool,
-    // Window must be dropped at last
-    window: &'static Window,
 }
 
 impl<'a> Engine<'a> {
-    pub fn new(window: &'static Window, backend: Backend<'a>) -> Self {
-        let renderer = Renderer::new(backend, window);
+    pub fn new(backend: Backend<'a>) -> Self {
+        let renderer = Renderer::new(backend);
 
         Self {
-            window,
             renderer,
             exited: Box::leak(Box::new(AtomicBool::new(false))),
         }
@@ -35,16 +28,16 @@ impl<'a> Engine<'a> {
         self.renderer.camera()
     }
 
-    pub fn device(&self) -> &Arc<Device> {
+    pub fn device(&self) -> &Device {
         self.renderer.backend().device()
     }
 
     pub fn window(&self) -> &Window {
-        self.window
+        self.renderer().window()
     }
 
     pub fn events(&self) -> &Receiver<Event> {
-        self.window().events()
+        self.renderer().window().events()
     }
 
     pub fn exited(&self) -> bool {

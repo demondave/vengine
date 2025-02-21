@@ -32,15 +32,14 @@ pub struct Renderer<'a> {
     camera: Camera,
     depth_texture: Mutex<Texture>,
     backend: Backend<'a>,
-    window: &'static Window,
 }
 
 impl<'a> Renderer<'a> {
-    pub fn new(backend: Backend<'a>, window: &'static Window) -> Self {
+    pub fn new(backend: Backend<'a>) -> Self {
         let size = Size {
-            width: window.dimension().0,
-            height: window.dimension().1,
-            pixels_per_point: window.window().scale_factor() as f32,
+            width: backend.window().dimension().0,
+            height: backend.window().dimension().1,
+            pixels_per_point: backend.window().window().scale_factor() as f32,
         };
 
         let camera = Camera::new(
@@ -51,7 +50,7 @@ impl<'a> Renderer<'a> {
 
         let voxel_renderer = VoxelRenderer::new(&backend, &camera);
 
-        let ui_renderer = UiRenderer::new(window, &backend, 1);
+        let ui_renderer = UiRenderer::new(backend.window(), &backend, 1);
 
         let lock = backend.surface_configuration().lock().unwrap();
 
@@ -69,7 +68,6 @@ impl<'a> Renderer<'a> {
             depth_texture: Mutex::new(depth_texture),
             ui_renderer,
             voxel_renderer,
-            window,
         }
     }
 
@@ -121,8 +119,8 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    pub fn window(&self) -> &'static Window {
-        self.window
+    pub fn window(&self) -> &Window {
+        self.backend.window()
     }
 
     pub fn voxel_renderer(&self) -> &VoxelRenderer {

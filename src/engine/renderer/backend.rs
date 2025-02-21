@@ -8,18 +8,21 @@ use crate::engine::core::window::window::Window;
 
 pub struct Backend<'a> {
     surface: Surface<'a>,
-    device: Arc<Device>,
+    device: Device,
     queue: Arc<Queue>,
     config: Mutex<SurfaceConfiguration>,
     format: TextureFormat,
+    window: &'a Window,
 }
 
 impl<'a> Backend<'a> {
-    pub async fn new(window: &'a Window) -> Self {
+    pub async fn new(window: Window) -> Self {
         let instance = Instance::new(&InstanceDescriptor {
             backends: Backends::PRIMARY,
             ..Default::default()
         });
+
+        let window: &'a Window = Box::leak(Box::new(window));
 
         let surface = instance.create_surface(window.window()).unwrap();
 
@@ -77,15 +80,20 @@ impl<'a> Backend<'a> {
         let queue = Arc::new(queue);
 
         Self {
-            device: Arc::new(device),
+            device,
             queue,
             surface,
             config: Mutex::new(config),
             format: surface_format,
+            window,
         }
     }
 
-    pub fn device(&self) -> &Arc<Device> {
+    pub fn window(&self) -> &Window {
+        self.window
+    }
+
+    pub fn device(&self) -> &Device {
         &self.device
     }
 
