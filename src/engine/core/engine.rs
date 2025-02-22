@@ -1,4 +1,6 @@
-use crate::engine::renderer::{backend::Backend, camera::Camera, size::Size, Renderer};
+use crate::engine::rendering::{
+    backend::Backend, camera::Camera, configuration::Configuration, size::Size, Renderer,
+};
 use crossbeam::channel::Receiver;
 use std::sync::atomic::{AtomicBool, Ordering};
 use wgpu::Device;
@@ -6,14 +8,14 @@ use winit::event::WindowEvent;
 
 use super::window::{handler::Event, window::Window};
 
-pub struct Engine<'a> {
-    renderer: Renderer<'a>,
+pub struct Engine<'a, C: Configuration> {
+    renderer: Renderer<'a, C>,
     exited: AtomicBool,
 }
 
-impl<'a> Engine<'a> {
-    pub fn new(backend: Backend<'a>) -> Self {
-        let renderer = Renderer::new(backend);
+impl<'a, C: Configuration> Engine<'a, C> {
+    pub fn new(configuration: C, backend: Backend<'a>) -> Self {
+        let renderer = Renderer::new(configuration, backend);
 
         Self {
             renderer,
@@ -41,7 +43,7 @@ impl<'a> Engine<'a> {
         }
     }
 
-    pub fn renderer(&self) -> &Renderer<'a> {
+    pub fn renderer(&self) -> &Renderer<'a, C> {
         &self.renderer
     }
 

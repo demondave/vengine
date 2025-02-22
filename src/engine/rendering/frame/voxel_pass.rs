@@ -1,8 +1,14 @@
-use crate::engine::voxel::{chunk_mesh::ChunkMesh, object::Object};
+use crate::engine::{
+    rendering::{
+        configuration::Configuration,
+        pipeline::{voxel::VoxelPipeline, GetPipeline},
+    },
+    voxel::{chunk_mesh::ChunkMesh, object::Object},
+};
 use cgmath::{Array, Matrix, Matrix4, Vector3};
 use wgpu::CommandEncoder;
 
-use super::pass::RenderPass;
+use super::{pass::RenderPass, Frame};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -110,7 +116,9 @@ impl VoxelPass {
 }
 
 impl RenderPass for VoxelPass {
-    fn start(frame: &super::Frame) -> Self {
+    type RequiredPipeline = VoxelPipeline;
+
+    fn start<C: Configuration + GetPipeline<VoxelPipeline>>(frame: &Frame<C>) -> Self {
         let view = frame
             .output()
             .texture
@@ -151,10 +159,18 @@ impl RenderPass for VoxelPass {
             timestamp_writes: None,
         });
 
-        pass.set_pipeline(frame.renderer().voxel_renderer().voxel_pipeline());
+        pass.set_pipeline(frame.renderer().configuration().get_pipeline().pipeline());
         pass.set_bind_group(0, frame.renderer().camera().bind_group(), &[]);
 
-        pass.set_vertex_buffer(0, frame.renderer().voxel_renderer().quad().slice(..));
+        pass.set_vertex_buffer(
+            0,
+            frame
+                .renderer()
+                .configuration()
+                .get_pipeline()
+                .quad()
+                .slice(..),
+        );
 
         Self {
             pass: pass.forget_lifetime(),
@@ -162,7 +178,7 @@ impl RenderPass for VoxelPass {
         }
     }
 
-    fn finish(self, frame: &super::Frame) {
+    fn finish<C: Configuration + GetPipeline<VoxelPipeline>>(self, frame: &Frame<C>) {
         frame.push_encoder(self.encoder);
     }
 }

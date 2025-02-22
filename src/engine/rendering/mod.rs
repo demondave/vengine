@@ -1,16 +1,15 @@
 pub mod backend;
 pub mod camera;
+pub mod configuration;
 pub mod frame;
 pub mod pipeline;
-#[allow(clippy::module_inception)]
 pub mod size;
 pub mod texture;
-pub mod ui;
-pub mod voxel;
 
 use super::core::window::window::Window;
 use backend::Backend;
 use camera::Camera;
+use configuration::Configuration;
 use crossbeam::atomic::AtomicCell;
 use frame::Frame;
 use size::Size;
@@ -19,23 +18,20 @@ use std::sync::{
     Mutex,
 };
 use texture::Texture;
-use ui::UiRenderer;
-use voxel::VoxelRenderer;
 use wgpu::SurfaceTexture;
 
-pub struct Renderer<'a> {
+pub struct Renderer<'a, C: Configuration> {
     current_size: AtomicCell<Size>,
     new_size: AtomicCell<Size>,
     resized: AtomicBool,
-    voxel_renderer: VoxelRenderer,
-    ui_renderer: UiRenderer,
+    configuration: C,
     camera: Camera,
     depth_texture: Mutex<Texture>,
     backend: Backend<'a>,
 }
 
-impl<'a> Renderer<'a> {
-    pub fn new(backend: Backend<'a>) -> Self {
+impl<'a, C: Configuration> Renderer<'a, C> {
+    pub fn new(mut configuration: C, backend: Backend<'a>) -> Self {
         let size = Size {
             width: backend.window().dimension().0,
             height: backend.window().dimension().1,
@@ -48,9 +44,7 @@ impl<'a> Renderer<'a> {
             backend.queue().clone(),
         );
 
-        let voxel_renderer = VoxelRenderer::new(&backend, &camera);
-
-        let ui_renderer = UiRenderer::new(backend.window(), &backend, 1);
+        configuration.initialize(&backend, &camera);
 
         let lock = backend.surface_configuration().lock().unwrap();
 
@@ -66,8 +60,7 @@ impl<'a> Renderer<'a> {
             camera,
             resized: AtomicBool::new(false),
             depth_texture: Mutex::new(depth_texture),
-            ui_renderer,
-            voxel_renderer,
+            configuration,
         }
     }
 
@@ -83,7 +76,7 @@ impl<'a> Renderer<'a> {
         self.current_size.load()
     }
 
-    pub fn start_frame(&self) -> Frame {
+    pub fn start_frame(&self) -> Frame<C> {
         let output: SurfaceTexture;
 
         self.handle_resize();
@@ -106,7 +99,7 @@ impl<'a> Renderer<'a> {
         Frame::new(self, output)
     }
 
-    pub fn finish_frame(&self, frame: Frame) {
+    pub fn finish_frame(&self, frame: Frame<C>) {
         let output = frame.finish();
 
         output.present();
@@ -123,12 +116,8 @@ impl<'a> Renderer<'a> {
         self.backend.window()
     }
 
-    pub fn voxel_renderer(&self) -> &VoxelRenderer {
-        &self.voxel_renderer
-    }
-
-    pub fn ui_renderer(&self) -> &UiRenderer {
-        &self.ui_renderer
+    pub fn configuration(&self) -> &C {
+        &self.configuration
     }
 
     pub fn handle_resize(&self) {

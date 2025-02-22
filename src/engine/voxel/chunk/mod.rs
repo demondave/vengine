@@ -10,6 +10,7 @@ pub const CHUNK_SIZE: usize = 32;
 pub const VOXEL_SIZE: f32 = 1.0;
 
 // The chunk coordinates are left handed
+#[derive(Clone)]
 pub struct Chunk {
     voxels: Box<[u32; 32 * 32]>,
     colors: HashMap<u16, [u8; 4]>,

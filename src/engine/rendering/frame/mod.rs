@@ -1,22 +1,21 @@
+use super::{configuration::Configuration, pipeline::GetPipeline, size::Size, Renderer};
 use pass::RenderPass;
 use std::sync::Mutex;
 use wgpu::{CommandBuffer, CommandEncoder, SurfaceTexture};
-
-use super::{size::Size, Renderer};
 
 pub mod pass;
 pub mod ui_pass;
 pub mod voxel_pass;
 
-pub struct Frame<'a> {
-    renderer: &'a Renderer<'a>,
+pub struct Frame<'a, C: Configuration> {
+    renderer: &'a Renderer<'a, C>,
     output: SurfaceTexture,
     encoders: Mutex<Vec<CommandEncoder>>,
     size: Size,
 }
 
-impl<'a> Frame<'a> {
-    pub fn new(renderer: &'a Renderer, output: SurfaceTexture) -> Self {
+impl<'a, C: Configuration> Frame<'a, C> {
+    pub fn new(renderer: &'a Renderer<C>, output: SurfaceTexture) -> Self {
         let size = renderer.size();
 
         Self {
@@ -27,14 +26,22 @@ impl<'a> Frame<'a> {
         }
     }
 
-    pub fn start_render_pass<T: RenderPass>(&self) -> T {
+    pub fn start_render_pass<T>(&self) -> T
+    where
+        T: RenderPass,
+        C: GetPipeline<T::RequiredPipeline>,
+    {
         T::start(self)
     }
-    pub fn finish_render_pass<T: RenderPass>(&self, pass: T) {
+    pub fn finish_render_pass<T>(&self, pass: T)
+    where
+        T: RenderPass,
+        C: GetPipeline<T::RequiredPipeline>,
+    {
         pass.finish(self);
     }
 
-    pub fn renderer(&self) -> &Renderer {
+    pub fn renderer(&self) -> &Renderer<C> {
         self.renderer
     }
 

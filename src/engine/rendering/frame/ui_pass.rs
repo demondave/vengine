@@ -1,8 +1,11 @@
+use super::{pass::RenderPass, Frame};
+use crate::engine::rendering::{
+    configuration::Configuration,
+    pipeline::{ui::UiPipeline, GetPipeline},
+};
 use egui::Context;
 use egui_wgpu::ScreenDescriptor;
 use wgpu::{CommandEncoder, StoreOp};
-
-use super::{pass::RenderPass, Frame};
 
 pub struct UiPass {
     encoder: CommandEncoder,
@@ -11,8 +14,10 @@ pub struct UiPass {
 }
 
 impl RenderPass for UiPass {
-    fn start(frame: &Frame) -> Self {
-        let mut ui_state = frame.renderer().ui_renderer().state();
+    type RequiredPipeline = UiPipeline;
+
+    fn start<C: Configuration + GetPipeline<UiPipeline>>(frame: &Frame<C>) -> Self {
+        let mut ui_state = frame.renderer().configuration().get_pipeline().state();
         let raw_input = ui_state.take_egui_input(frame.renderer().window().window());
         ui_state.egui_ctx().begin_pass(raw_input);
 
@@ -54,18 +59,30 @@ impl RenderPass for UiPass {
         UiPass {
             pass: pass.forget_lifetime(),
             encoder,
-            context: frame.renderer().ui_renderer().context().clone(),
+            context: frame
+                .renderer()
+                .configuration()
+                .get_pipeline()
+                .context()
+                .clone(),
         }
     }
 
-    fn finish(mut self, frame: &Frame) {
-        let mut ui_renderer = frame.renderer().ui_renderer().renderer();
+    fn finish<C: Configuration + GetPipeline<UiPipeline>>(mut self, frame: &Frame<C>) {
+        let mut ui_renderer = frame.renderer().configuration().get_pipeline().renderer();
 
-        let full_output = frame.renderer().ui_renderer().state().egui_ctx().end_pass();
+        let full_output = frame
+            .renderer()
+            .configuration()
+            .get_pipeline()
+            .state()
+            .egui_ctx()
+            .end_pass();
 
         let tris = frame
             .renderer()
-            .ui_renderer()
+            .configuration()
+            .get_pipeline()
             .state()
             .egui_ctx()
             .tessellate(full_output.shapes, full_output.pixels_per_point);
