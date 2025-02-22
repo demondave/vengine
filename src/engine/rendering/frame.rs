@@ -1,11 +1,8 @@
-use super::{configuration::Configuration, pipeline::GetPipeline, size::Size, Renderer};
-use pass::RenderPass;
+use super::{
+    configuration::Configuration, pass::RenderPass, pipeline::GetPipeline, size::Size, Renderer,
+};
 use std::sync::Mutex;
 use wgpu::{CommandBuffer, CommandEncoder, SurfaceTexture};
-
-pub mod pass;
-pub mod ui_pass;
-pub mod voxel_pass;
 
 pub struct Frame<'a, C: Configuration> {
     renderer: &'a Renderer<'a, C>,

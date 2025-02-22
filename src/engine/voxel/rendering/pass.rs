@@ -1,14 +1,12 @@
+use super::pipeline::VoxelPipeline;
 use crate::engine::{
     rendering::{
-        configuration::Configuration,
-        pipeline::{voxel::VoxelPipeline, GetPipeline},
+        configuration::Configuration, frame::Frame, pass::RenderPass, pipeline::GetPipeline,
     },
     voxel::{chunk_mesh::ChunkMesh, object::Object},
 };
 use cgmath::{Array, Matrix, Matrix4, Vector3};
 use wgpu::CommandEncoder;
-
-use super::{pass::RenderPass, Frame};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -41,37 +39,6 @@ impl VoxelPass {
                     0,
                     bytemuck::cast_slice(&[pc]),
                 );
-
-                /*
-                let position = object.transform().w.truncate()
-                    + offset.cast::<f32>().unwrap() * CHUNK_SIZE as f32 * VOXEL_SIZE;
-
-                let visible = chunk.visible(
-                    &self.renderer.camera().get_eye().to_vec(),
-                    position,
-                    Vector3::zero(),
-                );
-
-                let offsets = chunk.offsets();
-
-                for idx in 0..6 {
-                    if !visible[idx] {
-                        continue;
-                    }
-
-                    let start = offsets[idx] as u32;
-                    let end = *(offsets
-                        .get(idx + 1)
-                        .unwrap_or(&(chunk.quads().unwrap().len() as u16)))
-                        as u32;
-
-                    // Set instance buffer
-                    self.pass.set_vertex_buffer(1, buffer.slice(..));
-
-                    // Draw chunk
-                    self.pass.draw(0..4, start..end);
-                }
-                */
 
                 // Set instance buffer
                 self.pass.set_vertex_buffer(1, buffer.slice(..));
@@ -130,7 +97,13 @@ impl RenderPass for VoxelPass {
             },
         );
 
-        let depth_view = frame.renderer().depth_texture.lock().unwrap().view.clone();
+        let depth_view = frame
+            .renderer()
+            .depth_texture()
+            .lock()
+            .unwrap()
+            .view
+            .clone();
 
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,

@@ -1,6 +1,5 @@
-use super::Pipeline;
 use crate::engine::{
-    rendering::{backend::Backend, camera::Camera, texture::Texture},
+    rendering::{backend::Backend, camera::Camera, pipeline::Pipeline, texture::Texture},
     voxel::quad::Quad,
 };
 use wgpu::{util::DeviceExt, Buffer, RenderPipeline};

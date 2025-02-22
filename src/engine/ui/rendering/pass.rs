@@ -1,7 +1,8 @@
-use super::{pass::RenderPass, Frame};
-use crate::engine::rendering::{
-    configuration::Configuration,
-    pipeline::{ui::UiPipeline, GetPipeline},
+use crate::engine::{
+    rendering::{
+        configuration::Configuration, frame::Frame, pass::RenderPass, pipeline::GetPipeline,
+    },
+    ui::UiPipeline,
 };
 use egui::Context;
 use egui_wgpu::ScreenDescriptor;

@@ -2,6 +2,7 @@ pub mod backend;
 pub mod camera;
 pub mod configuration;
 pub mod frame;
+pub mod pass;
 pub mod pipeline;
 pub mod size;
 pub mod texture;
@@ -74,6 +75,10 @@ impl<'a, C: Configuration> Renderer<'a, C> {
 
     pub fn size(&self) -> Size {
         self.current_size.load()
+    }
+
+    pub fn depth_texture(&self) -> &Mutex<Texture> {
+        &self.depth_texture
     }
 
     pub fn start_frame(&self) -> Frame<C> {

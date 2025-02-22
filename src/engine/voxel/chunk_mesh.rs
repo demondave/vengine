@@ -1,15 +1,9 @@
-use cgmath::Vector3;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Buffer, Device,
 };
 
-use crate::engine::geometry::plane::Plane;
-
-use super::{
-    chunk::{direction::Direction, Chunk},
-    quad::Quad,
-};
+use super::{chunk::Chunk, quad::Quad};
 
 pub struct ChunkMesh {
     chunk: Chunk,
@@ -44,31 +38,6 @@ impl ChunkMesh {
 
     pub fn quads(&self) -> Option<&[Quad]> {
         self.quads.as_deref()
-    }
-
-    /// Returns which of the chunk sides are visible from the camera
-    pub fn visible(
-        &self,
-        eye: &Vector3<f32>,
-        position: Vector3<f32>,
-        _rotation: Vector3<f32>,
-    ) -> [bool; 6] {
-        let mut visible = [false; 6];
-
-        let planes = [
-            Plane::new(position, Direction::Left.unit_vector()),
-            Plane::new(position, Direction::Right.unit_vector()),
-            Plane::new(position, Direction::Up.unit_vector()),
-            Plane::new(position, Direction::Down.unit_vector()),
-            Plane::new(position, Direction::Front.unit_vector()),
-            Plane::new(position, Direction::Back.unit_vector()),
-        ];
-
-        for (v, p) in visible.iter_mut().zip(planes.iter()) {
-            *v = p.side(eye);
-        }
-
-        visible
     }
 
     pub fn remesh(&mut self) {
